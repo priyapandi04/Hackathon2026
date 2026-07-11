@@ -49,7 +49,9 @@ public class HoldingClockServiceTests
 
 public class RetailerPolicyServiceTests
 {
-    private readonly RetailerPolicyService _policy = new(NullLogger<RetailerPolicyService>.Instance);
+    private readonly RetailerPolicyService _policy = new(
+        NullLogger<RetailerPolicyService>.Instance,
+        new PolicyRetriever(NullLogger<PolicyRetriever>.Instance));
 
     [Theory]
     [InlineData("apparel", true)]
@@ -275,6 +277,65 @@ public class AutoApprovalPolicyTests
             Confidence(0.9, escalate: false), 40m, false, false, stableKey: "stable-key");
 
         Assert.Equal(a.SampledForQaAudit, b.SampledForQaAudit);
+    }
+}
+
+public class PolicyRetrieverTests
+{
+    private readonly PolicyRetriever _retriever = new(NullLogger<PolicyRetriever>.Instance);
+
+    [Theory]
+    [InlineData("apparel", "RP-APP-2.1")]
+    [InlineData("footwear", "RP-FTW-1.4")]
+    [InlineData("hygiene", "RP-HYG-1.0")]
+    [InlineData("serialized", "RP-SER-2.0")]
+    public void Retrieve_ByCategory_RanksGoverningPolicyFirst(string query, string expectedRef)
+    {
+        var matches = _retriever.Retrieve(query);
+
+        Assert.NotEmpty(matches);
+        Assert.Equal(expectedRef, matches[0].Document.PolicyRef);
+        Assert.True(matches[0].Score > 0);
+    }
+
+    [Fact]
+    public void Retrieve_FreeTextDescription_GroundsToRestrictedPolicy()
+    {
+        var matches = _retriever.Retrieve("opened shampoo bottle with broken seal");
+
+        Assert.NotEmpty(matches);
+        Assert.False(matches[0].Document.ResaleAllowed);
+        Assert.Equal("RP-HYG-1.0", matches[0].Document.PolicyRef);
+    }
+
+    [Fact]
+    public void Retrieve_UnrelatedQuery_ReturnsNoConfidentMatch()
+    {
+        var matches = _retriever.Retrieve("zzzzq wibble frobnicate");
+        Assert.Empty(matches);
+    }
+}
+
+public class AutoApprovalMetricsTests
+{
+    [Fact]
+    public void Snapshot_TalliesRoutesAndComputesStpRate()
+    {
+        var metrics = new AutoApprovalMetrics();
+
+        metrics.Record(new AutoApprovalResult { Route = AutoApprovalPolicy.RouteAutoApprove });
+        metrics.Record(new AutoApprovalResult { Route = AutoApprovalPolicy.RouteAutoApprove, SampledForQaAudit = true });
+        metrics.Record(new AutoApprovalResult { Route = AutoApprovalPolicy.RouteHumanReview });
+        metrics.Record(new AutoApprovalResult { Route = AutoApprovalPolicy.RouteEscalate });
+
+        var snapshot = metrics.Snapshot();
+
+        Assert.Equal(4, snapshot.Total);
+        Assert.Equal(2, snapshot.AutoApproved);
+        Assert.Equal(1, snapshot.HumanReview);
+        Assert.Equal(1, snapshot.Escalated);
+        Assert.Equal(1, snapshot.QaSampled);
+        Assert.Equal(50.0, snapshot.StpRate);
     }
 }
 

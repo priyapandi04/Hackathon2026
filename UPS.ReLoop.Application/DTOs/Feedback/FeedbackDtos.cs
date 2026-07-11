@@ -1,5 +1,7 @@
 namespace UPS.ReLoop.Application.DTOs.Feedback;
 
+using UPS.ReLoop.Application.DTOs.Decision;
+
 /// <summary>
 /// Human-in-the-loop decision captured from the store associate console.
 /// Accept = positive signal, Reject = negative, Modify = the richest signal
@@ -39,6 +41,9 @@ public class FeedbackSummary
     public int Rejected { get; set; }
     public double AcceptRate { get; set; }
     public List<FieldCorrectionStat> TopCorrectedFields { get; set; } = [];
+
+    /// <summary>Straight-through-processing split: how many items auto-approved vs sent to a human.</summary>
+    public AutoApprovalStats AutoApproval { get; set; } = new();
 }
 
 public record FieldCorrectionStat(string Field, int Count);

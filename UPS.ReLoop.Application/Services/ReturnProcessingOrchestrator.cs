@@ -29,6 +29,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
     private readonly IRetailerPolicyService _retailerPolicyService;
     private readonly IHoldingClockService _holdingClockService;
     private readonly IDiversionAgentService _diversionAgentService;
+    private readonly AutoApprovalMetrics _autoApprovalMetrics;
     private readonly ILogger<ReturnProcessingOrchestrator> _logger;
 
     public ReturnProcessingOrchestrator(
@@ -40,6 +41,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         IRetailerPolicyService retailerPolicyService,
         IHoldingClockService holdingClockService,
         IDiversionAgentService diversionAgentService,
+        AutoApprovalMetrics autoApprovalMetrics,
         ILogger<ReturnProcessingOrchestrator> logger)
     {
         _returnRequestSpRepo = returnRequestSpRepo;
@@ -50,6 +52,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         _retailerPolicyService = retailerPolicyService;
         _holdingClockService = holdingClockService;
         _diversionAgentService = diversionAgentService;
+        _autoApprovalMetrics = autoApprovalMetrics;
         _logger = logger;
     }
 
@@ -106,6 +109,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
             response.AutoApproval = AutoApprovalPolicy.Evaluate(
                 response.DecisionConfidence, ResolveBasePrice(request), policyRestricted: true, clockExpired: false,
                 stableKey: response.ReturnRequestId.ToString());
+            _autoApprovalMetrics.Record(response.AutoApproval);
             response.ProcessedAt = DateTime.UtcNow;
 
             _logger.LogInformation("Step 1b � Category '{Category}' is policy-restricted ({PolicyRef}); routing back to seller.",
@@ -124,6 +128,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
             response.AutoApproval = AutoApprovalPolicy.Evaluate(
                 response.DecisionConfidence, ResolveBasePrice(request), policyRestricted: false, clockExpired: true,
                 stableKey: response.ReturnRequestId.ToString());
+            _autoApprovalMetrics.Record(response.AutoApproval);
             response.ProcessedAt = DateTime.UtcNow;
 
             _logger.LogInformation("Step 1b � Holding window elapsed at day {Day}; auto-returning to seller.",
@@ -333,8 +338,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
             policyRestricted: false,
             clockExpired: false,
             stableKey: response.ReturnRequestId.ToString());
-
-        _logger.LogInformation("Step 5c \u2014 Auto-approval route: {Route} ({Reason})",
+        _autoApprovalMetrics.Record(response.AutoApproval);        _logger.LogInformation("Step 5c \u2014 Auto-approval route: {Route} ({Reason})",
             response.AutoApproval.Route, response.AutoApproval.Reason);
         // ???????????????????????????????????????????????????
         // STEP 5b: Triple-value + new-revenue economics

@@ -17,11 +17,13 @@ public class FeedbackService : IFeedbackService
 {
     private static readonly string[] ValidActions = ["Accept", "Modify", "Reject"];
     private readonly ConcurrentBag<StoredFeedback> _store;
+    private readonly AutoApprovalMetrics _autoApprovalMetrics;
     private readonly ILogger<FeedbackService> _logger;
 
-    public FeedbackService(ConcurrentBag<StoredFeedback> store, ILogger<FeedbackService> logger)
+    public FeedbackService(ConcurrentBag<StoredFeedback> store, AutoApprovalMetrics autoApprovalMetrics, ILogger<FeedbackService> logger)
     {
         _store = store;
+        _autoApprovalMetrics = autoApprovalMetrics;
         _logger = logger;
     }
 
@@ -85,7 +87,8 @@ public class FeedbackService : IFeedbackService
             Modified = modified,
             Rejected = rejected,
             AcceptRate = total == 0 ? 0 : Math.Round((double)accepted / total * 100, 1),
-            TopCorrectedFields = topFields
+            TopCorrectedFields = topFields,
+            AutoApproval = _autoApprovalMetrics.Snapshot()
         };
 
         return Task.FromResult(ApiResponse<FeedbackSummary>.SuccessResponse(summary, "Feedback summary."));

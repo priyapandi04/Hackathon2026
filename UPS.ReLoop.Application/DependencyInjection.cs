@@ -21,8 +21,10 @@ public static class DependencyInjection
 
         // ReLoop Decision Engine — differentiators (deterministic, auditable).
         services.AddSingleton<IHoldingClockService, HoldingClockService>();
+        services.AddSingleton<IPolicyRetriever, PolicyRetriever>();
         services.AddSingleton<IRetailerPolicyService, RetailerPolicyService>();
         services.AddSingleton<IDiversionAgentService, DiversionAgentService>();
+        services.AddSingleton<AutoApprovalMetrics>();
 
         // Human-in-the-loop feedback ("learns daily"). In-memory store for the MVP.
         services.AddSingleton<ConcurrentBag<FeedbackService.StoredFeedback>>();

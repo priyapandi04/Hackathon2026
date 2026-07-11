@@ -33,6 +33,12 @@ public class PolicyComplianceResult
     public string PolicyRef { get; set; } = string.Empty;
     public string PolicyName { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
+
+    /// <summary>Cosine similarity of the retrieved governing policy (0-1). 0 when no RAG match cleared the threshold.</summary>
+    public double RetrievalScore { get; set; }
+
+    /// <summary>The policy text snippet the decision was grounded on (RAG evidence).</summary>
+    public string RetrievedSnippet { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -116,4 +122,17 @@ public class AutoApprovalResult
     public bool SampledForQaAudit { get; set; }
 
     public string Reason { get; set; } = string.Empty;
+}
+
+/// <summary>Aggregated STP routing counts for the operations dashboard.</summary>
+public class AutoApprovalStats
+{
+    public int Total { get; set; }
+    public int AutoApproved { get; set; }
+    public int HumanReview { get; set; }
+    public int Escalated { get; set; }
+    public int QaSampled { get; set; }
+
+    /// <summary>Percentage of routed items auto-approved without human touch.</summary>
+    public double StpRate { get; set; }
 }
