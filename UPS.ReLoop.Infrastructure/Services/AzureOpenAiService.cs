@@ -4,13 +4,14 @@ using System.ClientModel;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenAI;
 using OpenAI.Chat;
 using UPS.ReLoop.Application.Interfaces;
 using UPS.ReLoop.Infrastructure.Configuration;
 
 public class AzureOpenAiService : IAiService, IOpenAIService
 {
-    private readonly ChatClient _chatClient;
+    private readonly Lazy<ChatClient> _chatClient;
     private readonly ILogger<AzureOpenAiService> _logger;
 
     public AzureOpenAiService(IOptions<AzureOpenAiSettings> settings, ILogger<AzureOpenAiService> logger)
@@ -18,19 +19,45 @@ public class AzureOpenAiService : IAiService, IOpenAIService
         _logger = logger;
         var config = settings.Value;
 
+        // Build the client lazily so a missing/invalid key does not crash service
+        // construction (which would take down the whole pipeline). Instead the error
+        // surfaces on the first actual LLM call, where callers fall back gracefully.
+        _chatClient = new Lazy<ChatClient>(() => CreateChatClient(config));
+
+        _logger.LogInformation("AI service configured: provider '{Provider}', model '{Model}'",
+            config.Provider, config.DeploymentName);
+    }
+
+    private ChatClient Chat => _chatClient.Value;
+
+    /// <summary>
+    /// Builds a <see cref="ChatClient"/> for either an Azure OpenAI resource or any
+    /// OpenAI-compatible endpoint (GitHub Models, Ollama, OpenAI, LM Studio…). The
+    /// rest of the service is provider-agnostic because both paths return the same
+    /// <see cref="ChatClient"/> type. Throws a clear <see cref="InvalidOperationException"/>
+    /// when configuration is missing so the health check reports exactly what to fix.
+    /// </summary>
+    private static ChatClient CreateChatClient(AzureOpenAiSettings config)
+    {
         if (string.IsNullOrWhiteSpace(config.Endpoint))
-            throw new ArgumentException("Azure OpenAI Endpoint is not configured.");
+            throw new InvalidOperationException("AI Endpoint is not configured (AzureOpenAI:Endpoint).");
         if (string.IsNullOrWhiteSpace(config.ApiKey))
-            throw new ArgumentException("Azure OpenAI ApiKey is not configured.");
+            throw new InvalidOperationException("AI ApiKey is not configured. Set AzureOpenAI:ApiKey (e.g. a GitHub token via the AzureOpenAI__ApiKey environment variable).");
         if (string.IsNullOrWhiteSpace(config.DeploymentName))
-            throw new ArgumentException("Azure OpenAI DeploymentName is not configured.");
+            throw new InvalidOperationException("AI model is not configured (AzureOpenAI:DeploymentName).");
 
-        var client = new AzureOpenAIClient(
-            new Uri(config.Endpoint),
-            new ApiKeyCredential(config.ApiKey));
-        _chatClient = client.GetChatClient(config.DeploymentName);
+        var credential = new ApiKeyCredential(config.ApiKey);
 
-        _logger.LogInformation("Azure OpenAI service initialized with deployment '{DeploymentName}'", config.DeploymentName);
+        if (config.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
+        {
+            var azureClient = new AzureOpenAIClient(new Uri(config.Endpoint), credential);
+            return azureClient.GetChatClient(config.DeploymentName);
+        }
+
+        // OpenAI-compatible provider: the configured Endpoint is the base URL and
+        // the SDK appends /chat/completions (e.g. GitHub Models, local Ollama).
+        var openAiClient = new OpenAIClient(credential, new OpenAIClientOptions { Endpoint = new Uri(config.Endpoint) });
+        return openAiClient.GetChatClient(config.DeploymentName);
     }
 
     public async Task<string> GenerateTextAsync(string prompt, CancellationToken cancellationToken = default)
@@ -47,7 +74,7 @@ public class AzureOpenAiService : IAiService, IOpenAIService
                 new UserChatMessage(prompt)
             };
 
-            var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var completion = await Chat.CompleteChatAsync(messages, cancellationToken: cancellationToken);
             var result = completion.Value.Content[0].Text;
 
             _logger.LogInformation("Text generation completed. Response length: {ResponseLength}", result.Length);
@@ -86,7 +113,7 @@ public class AzureOpenAiService : IAiService, IOpenAIService
                 new UserChatMessage(new List<ChatMessageContentPart> { textPart, imagePart })
             };
 
-            var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var completion = await Chat.CompleteChatAsync(messages, cancellationToken: cancellationToken);
             var result = completion.Value.Content[0].Text;
 
             _logger.LogInformation("Image analysis completed. Response length: {ResponseLength}", result.Length);
@@ -121,7 +148,7 @@ public class AzureOpenAiService : IAiService, IOpenAIService
                 new UserChatMessage($"Package Details: {packageDetails}\nReturn Reason: {reason}\n\nProvide analysis and recommendation for this return request.")
             };
 
-            var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var completion = await Chat.CompleteChatAsync(messages, cancellationToken: cancellationToken);
             return completion.Value.Content[0].Text;
         }
         catch (Exception ex)
@@ -143,7 +170,7 @@ public class AzureOpenAiService : IAiService, IOpenAIService
                 new UserChatMessage($"Package Details: {packageDetails}\n\nProvide optimization recommendations.")
             };
 
-            var completion = await _chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var completion = await Chat.CompleteChatAsync(messages, cancellationToken: cancellationToken);
             return completion.Value.Content[0].Text;
         }
         catch (Exception ex)

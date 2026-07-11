@@ -72,6 +72,8 @@ public class MatchAgentService : IMatchAgentService
                 CostSaved = costSaved,
                 Co2Saved = co2Saved,
                 Explanation = explanation,
+                Channel = MatchCalculator.ResolveChannel(request.Location, matchScore),
+                ExpectedDaysToSell = MatchCalculator.EstimateDaysToSell(matchScore),
                 MatchDetails = details
             };
 

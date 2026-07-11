@@ -245,7 +245,9 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     MatchScore = matchResult.Data.MatchScore,
                     Recommendation = matchResult.Data.Recommendation,
                     Confidence = matchResult.Data.Confidence,
-                    Explanation = matchResult.Data.Explanation
+                    Explanation = matchResult.Data.Explanation,
+                    Channel = matchResult.Data.Channel,
+                    ExpectedDaysToSell = matchResult.Data.ExpectedDaysToSell
                 };
 
                 response.Savings = new SavingsSummary
@@ -285,6 +287,29 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 
         _logger.LogInformation("Step 4a complete � Diversion action: {Action} at ${Price}",
             response.Diversion.Action, response.Diversion.SuggestedPrice);
+
+        // ???????????????????????????????????????????????????
+        // STEP 4b: reserve_item + create_listing (playbook Agent 1 actions)
+        // Pre-commit the item to a local channel whenever diversion keeps it local,
+        // so the item is never shipped back once a local outlet is chosen.
+        // ???????????????????????????????????????????????????
+        if (response.Diversion.Action is "SELL_LOCAL" or "WIDEN_RADIUS" or "DISCOUNT_SELL" or "OFFER_ACCESS_POINTS")
+        {
+            response.Listing = new LocalListing
+            {
+                Reserved = matchScore >= 40,
+                Channel = string.IsNullOrEmpty(response.HyperlocalMatch?.Channel)
+                    ? MatchCalculator.ResolveChannel(request.Location, matchScore)
+                    : response.HyperlocalMatch!.Channel,
+                ListingReference = $"LST-{response.ReturnRequestId.ToString()[..8].ToUpperInvariant()}",
+                ExpectedDaysToSell = response.HyperlocalMatch?.ExpectedDaysToSell ?? MatchCalculator.EstimateDaysToSell(matchScore),
+                ListedPrice = response.Diversion.SuggestedPrice
+            };
+
+            _logger.LogInformation("Step 4b � Local listing {Ref} at {Channel} (reserved={Reserved}, ${Price}, ~{Days}d)",
+                response.Listing.ListingReference, response.Listing.Channel, response.Listing.Reserved,
+                response.Listing.ListedPrice, response.Listing.ExpectedDaysToSell);
+        }
 
         // ???????????????????????????????????????????????????
         // STEP 5: Root Cause Agent � Azure OpenAI + usp_SaveRootCauseAnalysis

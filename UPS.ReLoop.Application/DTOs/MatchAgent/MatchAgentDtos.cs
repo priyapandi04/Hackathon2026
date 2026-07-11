@@ -16,6 +16,13 @@ public class MatchAgentResponse
     public double CostSaved { get; set; }
     public double Co2Saved { get; set; }
     public string Explanation { get; set; } = string.Empty;
+
+    /// <summary>Local resale channel (nearest UPS Store / Access Point) — playbook Agent 1 field.</summary>
+    public string Channel { get; set; } = string.Empty;
+
+    /// <summary>Deterministic expected days-to-sell within the holding window — playbook Agent 1 field.</summary>
+    public int ExpectedDaysToSell { get; set; }
+
     public List<MatchDetail> MatchDetails { get; set; } = [];
 }
 

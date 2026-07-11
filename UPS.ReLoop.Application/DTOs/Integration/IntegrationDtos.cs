@@ -45,6 +45,10 @@ public class ReturnProcessingResponse
     public DecisionConfidence? DecisionConfidence { get; set; }
     public AutoApprovalResult? AutoApproval { get; set; }
     public RevenueOpportunity? RevenueOpportunity { get; set; }
+
+    /// <summary>Local resale reservation / listing created by the Match agent (playbook reserve_item + create_listing).</summary>
+    public LocalListing? Listing { get; set; }
+
     public List<Citation> Citations { get; set; } = [];
 
     public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
@@ -65,6 +69,26 @@ public class MatchResult
     public string Recommendation { get; set; } = string.Empty;
     public double Confidence { get; set; }
     public string Explanation { get; set; } = string.Empty;
+
+    /// <summary>Local resale channel (nearest UPS Store / Access Point) — playbook Agent 1 field.</summary>
+    public string Channel { get; set; } = string.Empty;
+
+    /// <summary>Expected days-to-sell within the 10-day window — playbook Agent 1 field.</summary>
+    public int ExpectedDaysToSell { get; set; }
+}
+
+/// <summary>
+/// Result of the Match agent's reserve_item / create_listing actions from the
+/// playbook. Populated when the item is committed to local resale instead of
+/// being shipped back, so the pipeline shows a concrete pre-commitment.
+/// </summary>
+public class LocalListing
+{
+    public bool Reserved { get; set; }
+    public string Channel { get; set; } = string.Empty;
+    public string ListingReference { get; set; } = string.Empty;
+    public int ExpectedDaysToSell { get; set; }
+    public decimal ListedPrice { get; set; }
 }
 
 public class RootCauseResult

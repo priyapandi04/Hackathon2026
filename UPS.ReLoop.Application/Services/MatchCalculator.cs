@@ -120,4 +120,32 @@ public static class MatchCalculator
         // Approximate 0.0037 kg CO2 per km for ground shipping
         return Math.Round(distanceSavedKm * 0.0037, 2);
     }
+
+    /// <summary>
+    /// Deterministic expected days-to-sell — the playbook's Agent 1 output field.
+    /// Stronger local demand clears faster; always inside the 10-day holding window.
+    /// </summary>
+    public static int EstimateDaysToSell(int matchScore)
+    {
+        var days = (int)Math.Round(10 - matchScore / 12.5);
+        return Math.Clamp(days, 1, 10);
+    }
+
+    /// <summary>
+    /// Resolves the local resale channel (the playbook's Agent 1 <c>channel</c> field).
+    /// A staffed UPS Store is used when local demand is strong, otherwise a self-serve
+    /// Access Point. The storefront id is a stable hash of the hub so the same location
+    /// always maps to the same channel across runs.
+    /// </summary>
+    public static string ResolveChannel(string location, int matchScore)
+    {
+        var loc = string.IsNullOrWhiteSpace(location) ? "Hub" : location.Trim();
+        int hash = 0;
+        foreach (var c in loc) hash = (hash * 31 + c) & 0x7fffffff;
+        var number = 100 + hash % 900;
+
+        return matchScore >= 60
+            ? $"UPS Store #{number} ({loc})"
+            : $"UPS Access Point #{number} ({loc})";
+    }
 }

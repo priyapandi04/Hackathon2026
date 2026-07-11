@@ -3,6 +3,7 @@ namespace UPS.ReLoop.API.Controllers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UPS.ReLoop.Application.Common;
+using UPS.ReLoop.Application.Interfaces;
 using UPS.ReLoop.Application.Interfaces.Repositories;
 using UPS.ReLoop.Infrastructure.Persistence;
 
@@ -19,18 +20,50 @@ public class DebugController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IDashboardSpRepository _dashboardSpRepo;
     private readonly IInventoryPoolSpRepository _inventoryPoolSpRepo;
+    private readonly IOpenAIService _aiService;
     private readonly ILogger<DebugController> _logger;
 
     public DebugController(
         ApplicationDbContext context,
         IDashboardSpRepository dashboardSpRepo,
         IInventoryPoolSpRepository inventoryPoolSpRepo,
+        IOpenAIService aiService,
         ILogger<DebugController> logger)
     {
         _context = context;
         _dashboardSpRepo = dashboardSpRepo;
         _inventoryPoolSpRepo = inventoryPoolSpRepo;
+        _aiService = aiService;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// One-click LLM connectivity check. Sends a tiny prompt to the configured AI
+    /// provider (Azure OpenAI / GitHub Models / Ollama) and returns its reply, so
+    /// you can confirm the AI agents' language model works before running the full flow.
+    /// </summary>
+    /// <response code="200">The model replied â€” LLM is reachable.</response>
+    /// <response code="503">The model is unreachable or not configured.</response>
+    [HttpGet("ai-health")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> AiHealth(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("[Debug] Checking LLM connectivity");
+        try
+        {
+            var reply = await _aiService.GenerateTextAsync(
+                "Reply with exactly this text and nothing else: ReLoop AI online.", cancellationToken);
+
+            return Ok(ApiResponse<object>.SuccessResponse(
+                new { status = "ok", reply = reply.Trim() }, "LLM reachable."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[Debug] LLM connectivity check failed");
+            return StatusCode(503, ApiResponse<object>.FailResponse(
+                $"LLM unreachable: {ex.Message}", 503));
+        }
     }
 
     /// <summary>
@@ -70,7 +103,7 @@ public class DebugController : ControllerBase
                 Table = "Packages",
                 RowCount = packages.Count,
                 Data = packages.Cast<object>().ToList(),
-                SpValidation = "N/A — Direct table query"
+                SpValidation = "N/A ï¿½ Direct table query"
             };
 
             return Ok(ApiResponse<DebugDataResult>.SuccessResponse(result, $"Packages table: {packages.Count} rows returned."));
@@ -174,11 +207,11 @@ public class DebugController : ControllerBase
             {
                 var spResult = await _inventoryPoolSpRepo.GetByProductAsync(
                     productId ?? "TEST-PRODUCT", null, cancellationToken);
-                spValidation = $"usp_GetInventoryByProduct: OK — {spResult.Count} rows returned";
+                spValidation = $"usp_GetInventoryByProduct: OK ï¿½ {spResult.Count} rows returned";
             }
             catch (Exception spEx)
             {
-                spValidation = $"usp_GetInventoryByProduct: FAILED — {spEx.Message}";
+                spValidation = $"usp_GetInventoryByProduct: FAILED ï¿½ {spEx.Message}";
             }
 
             var result = new DebugDataResult
