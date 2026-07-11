@@ -111,7 +111,7 @@ public class RootCauseAgentService : IRootCauseAgentService
     /// turned into a priced retailer fix-ticket. No LLM call — pure aggregation —
     /// so the numbers are auditable.
     /// </summary>
-    public ApiResponse<ReturnClusterResult> ClusterReturns(RootCauseRequest request, decimal avgReverseCostPerItem = 9m)
+    public ApiResponse<ReturnClusterResult> ClusterReturns(RootCauseRequest request, decimal avgReverseCostPerItem = 180m)
     {
         if (request.Returns is null || request.Returns.Count == 0)
             throw new BadRequestException("At least one return item is required for clustering.");

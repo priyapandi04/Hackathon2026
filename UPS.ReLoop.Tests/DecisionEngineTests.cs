@@ -189,7 +189,7 @@ public class RevenueCalculatorTests
     public void Calculate_SubtractsAiCost()
     {
         var noValue = RevenueCalculator.Calculate(0m, 0m, 0);
-        Assert.Equal(-0.05m, noValue.TotalNetValue);
+        Assert.Equal(-0.5m, noValue.TotalNetValue);
     }
 }
 
@@ -217,7 +217,7 @@ public class AutoApprovalPolicyTests
     public void HighConfidence_HighValue_RequiresHumanReview()
     {
         var result = AutoApprovalPolicy.Evaluate(
-            Confidence(0.95, escalate: false), itemValue: 500m,
+            Confidence(0.95, escalate: false), itemValue: 8000m,
             policyRestricted: false, clockExpired: false, stableKey: "key-2");
 
         Assert.Equal(AutoApprovalPolicy.RouteHumanReview, result.Route);

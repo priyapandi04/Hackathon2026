@@ -103,7 +103,7 @@ public class DiversionAgentService : IDiversionAgentService
         decision.Reasoning =
             $"Day {clock.HoldingDay}/{HoldingClockResult.MaxHoldingDays}, match {matchScore}: " +
             $"{decision.Action.Replace('_', ' ').ToLowerInvariant()} at {discountPct:0}% off " +
-            $"(${decision.SuggestedPrice}) within {decision.SearchRadiusKm} km to divert before return.";
+            $"(₹{decision.SuggestedPrice}) within {decision.SearchRadiusKm} km to divert before return.";
 
         return Log(decision, matchScore, clock);
     }

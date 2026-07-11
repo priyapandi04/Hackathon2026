@@ -18,8 +18,8 @@ using UPS.ReLoop.Application.Interfaces.Repositories;
 /// </summary>
 public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 {
-    private const decimal DefaultBasePrice = 40m;
-    private const decimal AvgReverseFreight = 9m; // illustrative reverse-parcel cost avoided
+    private const decimal DefaultBasePrice = 2499m;
+    private const decimal AvgReverseFreight = 180m; // illustrative reverse-parcel cost avoided (INR)
 
     private readonly IReturnRequestSpRepository _returnRequestSpRepo;
     private readonly IImageValidationService _imageValidationService;
@@ -285,7 +285,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
             _ => response.Status
         };
 
-        _logger.LogInformation("Step 4a complete � Diversion action: {Action} at ${Price}",
+        _logger.LogInformation("Step 4a — Diversion action: {Action} at Rs.{Price}",
             response.Diversion.Action, response.Diversion.SuggestedPrice);
 
         // ???????????????????????????????????????????????????
@@ -306,7 +306,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                 ListedPrice = response.Diversion.SuggestedPrice
             };
 
-            _logger.LogInformation("Step 4b � Local listing {Ref} at {Channel} (reserved={Reserved}, ${Price}, ~{Days}d)",
+            _logger.LogInformation("Step 4b — Local listing {Ref} at {Channel} (reserved={Reserved}, Rs.{Price}, ~{Days}d)",
                 response.Listing.ListingReference, response.Listing.Channel, response.Listing.Reserved,
                 response.Listing.ListedPrice, response.Listing.ExpectedDaysToSell);
         }
@@ -387,7 +387,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         response.ProcessedAt = DateTime.UtcNow;
 
         _logger.LogInformation(
-            "Pipeline complete for PackageId: {PackageId} � Status: {Status}, MatchScore: {Score}, Savings: ${Cost}, NetValue: ${Net}",
+            "Pipeline complete for PackageId: {PackageId} — Status: {Status}, MatchScore: {Score}, Savings: Rs.{Cost}, NetValue: Rs.{Net}",
             request.PackageId, response.Status,
             response.HyperlocalMatch?.MatchScore ?? 0,
             response.Savings.CostSaved,

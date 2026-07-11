@@ -23,8 +23,8 @@ public static class AutoApprovalPolicy
     /// <summary>At/above this confidence a policy-clean, low-value item auto-approves.</summary>
     public const double AutoApproveConfidenceThreshold = 0.85;
 
-    /// <summary>Items worth more than this always get a human sign-off (dollar-risk guardrail).</summary>
-    public const decimal HighValueReviewThreshold = 150m;
+    /// <summary>Items worth more than this always get a human sign-off (value-risk guardrail, INR).</summary>
+    public const decimal HighValueReviewThreshold = 5000m;
 
     /// <summary>Fraction of auto-approved items flagged for a post-hoc QA audit.</summary>
     public const double QaSampleRate = 0.02;
@@ -83,7 +83,7 @@ public static class AutoApprovalPolicy
         {
             result.Route = RouteHumanReview;
             result.RequiresHumanReview = true;
-            result.Reason = $"Item value ${itemValue:0.##} exceeds the ${HighValueReviewThreshold:0.##} auto-approval limit — human sign-off required.";
+            result.Reason = $"Item value ₹{itemValue:N0} exceeds the ₹{HighValueReviewThreshold:N0} auto-approval limit — human sign-off required.";
             return result;
         }
 

@@ -10,10 +10,10 @@ using UPS.ReLoop.Application.DTOs.Decision;
 /// </summary>
 public static class RevenueCalculator
 {
-    // Illustrative commercial assumptions (documented in the business case).
+    // Illustrative commercial assumptions in Indian Rupees (documented in the business case).
     private const decimal ResaleServiceFeeRate = 0.12m; // ~12% success fee to UPS
-    private const decimal Co2PriceUsdPerKg = 0.05m;     // illustrative carbon value
-    private const decimal AiCostPerItem = 0.05m;         // GPT-4o + cache
+    private const decimal Co2PriceInrPerKg = 4m;         // illustrative carbon value (INR/kg)
+    private const decimal AiCostPerItem = 0.5m;          // GPT-4o-mini + infra per item (INR)
     private const decimal DefaultMarginRate = 0.20m;     // margin as share of price if none supplied
 
     public static RevenueOpportunity Calculate(
@@ -24,7 +24,7 @@ public static class RevenueCalculator
     {
         var margin = resaleMargin ?? Math.Round(salePrice * DefaultMarginRate, 2);
         var serviceFee = Math.Round(salePrice * ResaleServiceFeeRate, 2);
-        var co2Value = Math.Round((decimal)co2SavedKg * Co2PriceUsdPerKg, 2);
+        var co2Value = Math.Round((decimal)co2SavedKg * Co2PriceInrPerKg, 2);
 
         var total = Math.Round(freightAvoided + margin + serviceFee + co2Value - AiCostPerItem, 2);
 

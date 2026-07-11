@@ -9,7 +9,7 @@ public static class MatchCalculator
     private const int SameAreaPoints = 20;
     private const int HighDemandPoints = 20;
     private const int GoodConditionPoints = 10;
-    private const double HighDemandThreshold = 7.0;
+    private const double HighDemandThreshold = 70.0; // demand score is on a 0-100 scale
 
     private static readonly HashSet<string> GoodConditions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -111,8 +111,8 @@ public static class MatchCalculator
 
     public static double EstimateCostSaved(double distanceSavedKm)
     {
-        // Approximate $0.026 per km saved
-        return Math.Round(distanceSavedKm * 0.026, 2);
+        // Reverse road-freight avoided per parcel-km (INR), illustrative.
+        return Math.Round(distanceSavedKm * 1.1, 2);
     }
 
     public static double EstimateCo2Saved(double distanceSavedKm)

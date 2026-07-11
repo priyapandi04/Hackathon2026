@@ -134,14 +134,14 @@ public class MatchAgentService : IMatchAgentService
             .DefaultIfEmpty(0)
             .Max();
 
-        if (maxDemandScore >= 7.0)
+        if (maxDemandScore >= 70.0)
         {
             totalScore += 20;
             details.Add(new MatchDetail
             {
                 Factor = "High Demand",
                 Points = 20,
-                Reason = $"Demand score {maxDemandScore:F1} exceeds threshold of 7.0"
+                Reason = $"Demand score {maxDemandScore:F1} exceeds threshold of 70"
             });
         }
 
