@@ -2,6 +2,7 @@ namespace UPS.ReLoop.Application.Services;
 
 using Microsoft.Extensions.Logging;
 using UPS.ReLoop.Application.Common;
+using UPS.ReLoop.Application.DTOs.Decision;
 using UPS.ReLoop.Application.DTOs.ImageValidation;
 using UPS.ReLoop.Application.DTOs.Integration;
 using UPS.ReLoop.Application.DTOs.MatchAgent;
@@ -11,15 +12,23 @@ using UPS.ReLoop.Application.Interfaces.Repositories;
 
 /// <summary>
 /// Orchestrates the complete return processing pipeline across all AI agents and stored procedures.
-/// Flow: CreateReturnRequest ? ImageValidation ? InventoryPool ? MatchAgent ? RootCause ? Response
+/// Flow: CreateReturnRequest -> PolicyCompliance -> HoldingClock -> ImageValidation ->
+///       InventoryPool -> MatchAgent -> DiversionAgent -> RootCause -> ConfidenceGate ->
+///       Revenue -> Response
 /// </summary>
 public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 {
+    private const decimal DefaultBasePrice = 40m;
+    private const decimal AvgReverseFreight = 9m; // illustrative reverse-parcel cost avoided
+
     private readonly IReturnRequestSpRepository _returnRequestSpRepo;
     private readonly IImageValidationService _imageValidationService;
     private readonly IInventoryPoolSpRepository _inventoryPoolSpRepo;
     private readonly IMatchAgentService _matchAgentService;
     private readonly IRootCauseAgentService _rootCauseAgentService;
+    private readonly IRetailerPolicyService _retailerPolicyService;
+    private readonly IHoldingClockService _holdingClockService;
+    private readonly IDiversionAgentService _diversionAgentService;
     private readonly ILogger<ReturnProcessingOrchestrator> _logger;
 
     public ReturnProcessingOrchestrator(
@@ -28,6 +37,9 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         IInventoryPoolSpRepository inventoryPoolSpRepo,
         IMatchAgentService matchAgentService,
         IRootCauseAgentService rootCauseAgentService,
+        IRetailerPolicyService retailerPolicyService,
+        IHoldingClockService holdingClockService,
+        IDiversionAgentService diversionAgentService,
         ILogger<ReturnProcessingOrchestrator> logger)
     {
         _returnRequestSpRepo = returnRequestSpRepo;
@@ -35,6 +47,9 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         _inventoryPoolSpRepo = inventoryPoolSpRepo;
         _matchAgentService = matchAgentService;
         _rootCauseAgentService = rootCauseAgentService;
+        _retailerPolicyService = retailerPolicyService;
+        _holdingClockService = holdingClockService;
+        _diversionAgentService = diversionAgentService;
         _logger = logger;
     }
 
@@ -62,8 +77,61 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 
         response.ReturnRequestId = createResult.ReturnRequestId;
         response.Status = createResult.Status;
-        _logger.LogInformation("Step 1 complete — ReturnRequest created: {ReturnRequestId}, Status: {Status}",
+        _logger.LogInformation("Step 1 complete ï¿½ ReturnRequest created: {ReturnRequestId}, Status: {Status}",
             createResult.ReturnRequestId, createResult.Status);
+
+        // ???????????????????????????????????????????????????
+        // STEP 1a: Deterministic 10-day holding clock (core UPS constraint)
+        // ???????????????????????????????????????????????????
+        response.HoldingClock = request.HoldingDaysCompleted is { } days
+            ? _holdingClockService.EvaluateFromDays(days)
+            : request.PickupDate is { } pickup
+                ? _holdingClockService.Evaluate(pickup)
+                : _holdingClockService.EvaluateFromDays(0);
+
+        _logger.LogInformation("Step 1a ï¿½ Holding clock: {Message}", response.HoldingClock.Message);
+
+        // ???????????????????????????????????????????????????
+        // STEP 1b: Policy-first compliance grounding (block overrides condition)
+        // ???????????????????????????????????????????????????
+        var policy = _retailerPolicyService.Evaluate(request.Category);
+        response.PolicyCompliance = policy;
+        response.Citations.Add(_retailerPolicyService.GetCitation(request.Category));
+
+        if (policy.IsRestrictedCategory)
+        {
+            response.Status = "ReturnToSeller";
+            response.Diversion = _diversionAgentService.Decide(0, response.HoldingClock, ResolveBasePrice(request), resaleAllowed: false);
+            response.DecisionConfidence = DecisionConfidenceEvaluator.Evaluate(null, 0, policyResolved: true, policyRestricted: true);
+            response.AutoApproval = AutoApprovalPolicy.Evaluate(
+                response.DecisionConfidence, ResolveBasePrice(request), policyRestricted: true, clockExpired: false,
+                stableKey: response.ReturnRequestId.ToString());
+            response.ProcessedAt = DateTime.UtcNow;
+
+            _logger.LogInformation("Step 1b ï¿½ Category '{Category}' is policy-restricted ({PolicyRef}); routing back to seller.",
+                request.Category, policy.PolicyRef);
+
+            return ApiResponse<ReturnProcessingResponse>.SuccessResponse(response,
+                $"Return routed back to seller â€” retailer policy {policy.PolicyRef} prohibits local resale.");
+        }
+
+        // If the holding window already elapsed, auto-return before doing resale work.
+        if (response.HoldingClock.IsExpired)
+        {
+            response.Status = "ReturnToSeller";
+            response.Diversion = _diversionAgentService.Decide(0, response.HoldingClock, ResolveBasePrice(request), resaleAllowed: true);
+            response.DecisionConfidence = DecisionConfidenceEvaluator.Evaluate(null, 0, policyResolved: true, policyRestricted: false);
+            response.AutoApproval = AutoApprovalPolicy.Evaluate(
+                response.DecisionConfidence, ResolveBasePrice(request), policyRestricted: false, clockExpired: true,
+                stableKey: response.ReturnRequestId.ToString());
+            response.ProcessedAt = DateTime.UtcNow;
+
+            _logger.LogInformation("Step 1b ï¿½ Holding window elapsed at day {Day}; auto-returning to seller.",
+                response.HoldingClock.HoldingDay);
+
+            return ApiResponse<ReturnProcessingResponse>.SuccessResponse(response,
+                "Return routed back to seller â€” 10-day holding window elapsed.");
+        }
 
         // ???????????????????????????????????????????????????
         // STEP 2: Image Validation via Azure OpenAI + usp_SaveImageValidationResult
@@ -102,23 +170,23 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     if (!imageResult.Data.Eligible)
                     {
                         response.Status = "Rejected";
-                        _logger.LogInformation("Step 2 — Return REJECTED by image validation for PackageId: {PackageId}", request.PackageId);
+                        _logger.LogInformation("Step 2 ï¿½ Return REJECTED by image validation for PackageId: {PackageId}", request.PackageId);
                         return ApiResponse<ReturnProcessingResponse>.SuccessResponse(response,
-                            "Return rejected — item not eligible based on image validation.");
+                            "Return rejected ï¿½ item not eligible based on image validation.");
                     }
 
-                    _logger.LogInformation("Step 2 complete — Image validated. Condition: {Condition}, Eligible: {Eligible}",
+                    _logger.LogInformation("Step 2 complete ï¿½ Image validated. Condition: {Condition}, Eligible: {Eligible}",
                         imageResult.Data.Condition, imageResult.Data.Eligible);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Step 2 — Image validation failed, continuing pipeline for PackageId: {PackageId}", request.PackageId);
+                _logger.LogWarning(ex, "Step 2 ï¿½ Image validation failed, continuing pipeline for PackageId: {PackageId}", request.PackageId);
             }
         }
         else
         {
-            _logger.LogInformation("Step 2 skipped — No image provided for PackageId: {PackageId}", request.PackageId);
+            _logger.LogInformation("Step 2 skipped ï¿½ No image provided for PackageId: {PackageId}", request.PackageId);
         }
 
         // ???????????????????????????????????????????????????
@@ -137,20 +205,20 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     50.0,
                     cancellationToken);
 
-                _logger.LogInformation("Step 3 complete — Added to inventory pool (no image flow) for ReturnRequestId: {Id}", response.ReturnRequestId);
+                _logger.LogInformation("Step 3 complete ï¿½ Added to inventory pool (no image flow) for ReturnRequestId: {Id}", response.ReturnRequestId);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Step 3 — Failed to add to inventory pool for PackageId: {PackageId}", request.PackageId);
+                _logger.LogWarning(ex, "Step 3 ï¿½ Failed to add to inventory pool for PackageId: {PackageId}", request.PackageId);
             }
         }
         else
         {
-            _logger.LogInformation("Step 3 — Inventory pool handled by ImageValidationService");
+            _logger.LogInformation("Step 3 ï¿½ Inventory pool handled by ImageValidationService");
         }
 
         // ???????????????????????????????????????????????????
-        // STEP 4: Match Agent — usp_GetInventoryByProduct, usp_GetDemandHistory, usp_SaveMatchResult
+        // STEP 4: Match Agent ï¿½ usp_GetInventoryByProduct, usp_GetDemandHistory, usp_SaveMatchResult
         // (All handled inside MatchAgentService)
         // ???????????????????????????????????????????????????
         try
@@ -184,18 +252,37 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 
                 response.Status = matchResult.Data.MatchScore >= 70 ? "Matched" : "Eligible";
 
-                _logger.LogInformation("Step 4 complete — MatchScore: {Score}, Recommendation: {Rec}, DistanceSaved: {Dist}km",
+                _logger.LogInformation("Step 4 complete ï¿½ MatchScore: {Score}, Recommendation: {Rec}, DistanceSaved: {Dist}km",
                     matchResult.Data.MatchScore, matchResult.Data.Recommendation, matchResult.Data.DistanceSavedKm);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Step 4 — Match agent failed for PackageId: {PackageId}", request.PackageId);
+            _logger.LogWarning(ex, "Step 4 ï¿½ Match agent failed for PackageId: {PackageId}", request.PackageId);
             response.Status = "Eligible";
         }
 
         // ???????????????????????????????????????????????????
-        // STEP 5: Root Cause Agent — Azure OpenAI + usp_SaveRootCauseAnalysis
+        // STEP 4a: Diversion / Dynamic-Pricing agent (the diversion flywheel)
+        // Turns the holding window into a countdown-to-sale.
+        // ???????????????????????????????????????????????????
+        var matchScore = response.HyperlocalMatch?.MatchScore ?? 0;
+        response.Diversion = _diversionAgentService.Decide(
+            matchScore, response.HoldingClock!, ResolveBasePrice(request), resaleAllowed: true);
+
+        response.Status = response.Diversion.Action switch
+        {
+            "SELL_LOCAL" => "Matched",
+            "RETURN_TO_SELLER" => "ReturnToSeller",
+            "ESCALATE" => "Escalate",
+            _ => response.Status
+        };
+
+        _logger.LogInformation("Step 4a complete ï¿½ Diversion action: {Action} at ${Price}",
+            response.Diversion.Action, response.Diversion.SuggestedPrice);
+
+        // ???????????????????????????????????????????????????
+        // STEP 5: Root Cause Agent ï¿½ Azure OpenAI + usp_SaveRootCauseAnalysis
         // (All handled inside RootCauseAgentService)
         // ???????????????????????????????????????????????????
         try
@@ -213,13 +300,54 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     Impact = rootCauseResult.Data.AiAnalysis.Impact
                 };
 
-                _logger.LogInformation("Step 5 complete — RootCause: {RootCause}", rootCauseResult.Data.AiAnalysis.RootCause);
+                _logger.LogInformation("Step 5 complete ï¿½ RootCause: {RootCause}", rootCauseResult.Data.AiAnalysis.RootCause);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Step 5 — Root cause analysis failed for PackageId: {PackageId}", request.PackageId);
+            _logger.LogWarning(ex, "Step 5 ï¿½ Root cause analysis failed for PackageId: {PackageId}", request.PackageId);
         }
+
+        // ???????????????????????????????????????????????????
+        // STEP 5a: Calibrated-trust confidence gate (escalate when unsure)
+        // ???????????????????????????????????????????????????
+        response.DecisionConfidence = DecisionConfidenceEvaluator.Evaluate(
+            response.ImageValidation?.Confidence,
+            response.HyperlocalMatch?.Confidence ?? 0,
+            policyResolved: response.PolicyCompliance is { PolicyRef: not "RP-DEF-0.0" },
+            policyRestricted: false);
+
+        if (response.DecisionConfidence.ShouldEscalate && response.Status is not ("Matched" or "ReturnToSeller"))
+        {
+            response.Status = "Escalate";
+            _logger.LogInformation("Step 5a ï¿½ Low confidence {Score}; escalating to human review.",
+                response.DecisionConfidence.Score);
+        }
+        // ???????????????????????????????????????????????????
+        // STEP 5c: Straight-through auto-approval routing (throughput at scale)
+        // Only the uncertain / high-value tail reaches the manual accept/modify/reject queue.
+        // ???????????????????????????????????????????????????
+        response.AutoApproval = AutoApprovalPolicy.Evaluate(
+            response.DecisionConfidence,
+            ResolveBasePrice(request),
+            policyRestricted: false,
+            clockExpired: false,
+            stableKey: response.ReturnRequestId.ToString());
+
+        _logger.LogInformation("Step 5c \u2014 Auto-approval route: {Route} ({Reason})",
+            response.AutoApproval.Route, response.AutoApproval.Reason);
+        // ???????????????????????????????????????????????????
+        // STEP 5b: Triple-value + new-revenue economics
+        // ???????????????????????????????????????????????????
+        response.RevenueOpportunity = RevenueCalculator.Calculate(
+            freightAvoided: AvgReverseFreight,
+            salePrice: response.Diversion?.SuggestedPrice ?? ResolveBasePrice(request),
+            co2SavedKg: response.Savings.Co2SavedKg);
+
+        // Add a precedent citation when there is a real local match (grounding).
+        if (matchScore >= 40)
+            response.Citations.Add(new Citation("precedent", response.ReturnRequestId.ToString(),
+                $"Local demand match score {matchScore} supports resale."));
 
         // ???????????????????????????????????????????????????
         // STEP 6: Return complete response
@@ -230,11 +358,15 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         response.ProcessedAt = DateTime.UtcNow;
 
         _logger.LogInformation(
-            "Pipeline complete for PackageId: {PackageId} — Status: {Status}, MatchScore: {Score}, Savings: ${Cost}",
+            "Pipeline complete for PackageId: {PackageId} ï¿½ Status: {Status}, MatchScore: {Score}, Savings: ${Cost}, NetValue: ${Net}",
             request.PackageId, response.Status,
             response.HyperlocalMatch?.MatchScore ?? 0,
-            response.Savings.CostSaved);
+            response.Savings.CostSaved,
+            response.RevenueOpportunity?.TotalNetValue ?? 0);
 
         return ApiResponse<ReturnProcessingResponse>.SuccessResponse(response, "Return processed successfully through all agents.");
     }
+
+    private static decimal ResolveBasePrice(ReturnProcessingRequest request) =>
+        request.BasePrice is { } p and > 0 ? p : DefaultBasePrice;
 }

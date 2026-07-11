@@ -24,4 +24,15 @@ public class RootCauseAgentController : ControllerBase
         var result = await _service.AnalyzeAsync(request, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    /// <summary>
+    /// Clusters many returns into systemic root causes and priced retailer
+    /// fix-tickets (the Reduce pillar — lowers return volume at the source).
+    /// </summary>
+    [HttpPost("cluster")]
+    public IActionResult Cluster([FromBody] RootCauseRequest request)
+    {
+        var result = _service.ClusterReturns(request);
+        return StatusCode(result.StatusCode, result);
+    }
 }

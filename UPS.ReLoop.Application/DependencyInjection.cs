@@ -1,5 +1,6 @@
 namespace UPS.ReLoop.Application;
 
+using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using UPS.ReLoop.Application.Interfaces;
 using UPS.ReLoop.Application.Services;
@@ -17,6 +18,16 @@ public static class DependencyInjection
         services.AddScoped<IRootCauseAgentService, RootCauseAgentService>();
         services.AddSingleton<ISavingsCalculatorService, SavingsCalculatorService>();
         services.AddScoped<IDashboardService, DashboardService>();
+
+        // ReLoop Decision Engine — differentiators (deterministic, auditable).
+        services.AddSingleton<IHoldingClockService, HoldingClockService>();
+        services.AddSingleton<IRetailerPolicyService, RetailerPolicyService>();
+        services.AddSingleton<IDiversionAgentService, DiversionAgentService>();
+
+        // Human-in-the-loop feedback ("learns daily"). In-memory store for the MVP.
+        services.AddSingleton<ConcurrentBag<FeedbackService.StoredFeedback>>();
+        services.AddScoped<IFeedbackService, FeedbackService>();
+
         services.AddScoped<IReturnProcessingOrchestrator, ReturnProcessingOrchestrator>();
         return services;
     }

@@ -1,5 +1,7 @@
 namespace UPS.ReLoop.Application.DTOs.Integration;
 
+using UPS.ReLoop.Application.DTOs.Decision;
+
 /// <summary>
 /// Complete return processing request that triggers the full agent pipeline.
 /// </summary>
@@ -12,6 +14,15 @@ public record ReturnProcessingRequest
     public string Location { get; init; } = string.Empty;
     public string? ImageBase64 { get; init; }
     public string? AdditionalContext { get; init; }
+
+    /// <summary>Holding days already completed (0-10) — drives the deterministic clock.</summary>
+    public int? HoldingDaysCompleted { get; init; }
+
+    /// <summary>Original pickup date; used when <see cref="HoldingDaysCompleted"/> is not supplied.</summary>
+    public DateTime? PickupDate { get; init; }
+
+    /// <summary>Base/list price used by the dynamic-pricing agent (defaults if omitted).</summary>
+    public decimal? BasePrice { get; init; }
 }
 
 /// <summary>
@@ -26,6 +37,16 @@ public class ReturnProcessingResponse
     public MatchResult? HyperlocalMatch { get; set; }
     public RootCauseResult? RootCauseAnalysis { get; set; }
     public SavingsSummary Savings { get; set; } = new();
+
+    // ReLoop Decision Engine outputs (differentiators).
+    public HoldingClockResult? HoldingClock { get; set; }
+    public PolicyComplianceResult? PolicyCompliance { get; set; }
+    public DiversionDecision? Diversion { get; set; }
+    public DecisionConfidence? DecisionConfidence { get; set; }
+    public AutoApprovalResult? AutoApproval { get; set; }
+    public RevenueOpportunity? RevenueOpportunity { get; set; }
+    public List<Citation> Citations { get; set; } = [];
+
     public DateTime ProcessedAt { get; set; } = DateTime.UtcNow;
 }
 

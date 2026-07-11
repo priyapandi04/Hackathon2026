@@ -106,6 +106,57 @@ public class RootCauseAgentService : IRootCauseAgentService
         }
     }
 
+    /// <summary>
+    /// Deterministic clustering of many returns into systemic root causes, each
+    /// turned into a priced retailer fix-ticket. No LLM call — pure aggregation —
+    /// so the numbers are auditable.
+    /// </summary>
+    public ApiResponse<ReturnClusterResult> ClusterReturns(RootCauseRequest request, decimal avgReverseCostPerItem = 9m)
+    {
+        if (request.Returns is null || request.Returns.Count == 0)
+            throw new BadRequestException("At least one return item is required for clustering.");
+
+        var total = request.Returns.Count;
+
+        var clusters = request.Returns
+            .GroupBy(r => r.Category, StringComparer.OrdinalIgnoreCase)
+            .Select(catGroup =>
+            {
+                var count = catGroup.Count();
+                var dominant = catGroup
+                    .GroupBy(r => r.ReturnReason, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(g => g.Count())
+                    .First();
+                var topLocation = catGroup
+                    .GroupBy(r => r.Location, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(g => g.Count())
+                    .First().Key;
+
+                var pct = Math.Round((double)count / total * 100, 1);
+                // Illustrative annualised impact: dominant-reason volume scaled to a
+                // year (x260 operating days) x avg reverse cost avoided if fixed.
+                var annualImpact = Math.Round(dominant.Count() * 260m * avgReverseCostPerItem, 0);
+
+                return new ReturnCluster
+                {
+                    Category = catGroup.Key,
+                    DominantReason = dominant.Key,
+                    Count = count,
+                    Percentage = pct,
+                    TopLocation = topLocation,
+                    EstimatedAnnualImpactUsd = annualImpact,
+                    FixTicket = $"{pct:0}% of {catGroup.Key} returns trace to '{dominant.Key}' " +
+                                $"(hotspot: {topLocation}). Projected ~${annualImpact:N0}/yr if fixed at source."
+                };
+            })
+            .OrderByDescending(c => c.Count)
+            .ToList();
+
+        var result = new ReturnClusterResult { TotalReturns = total, Clusters = clusters };
+        _logger.LogInformation("Clustered {Total} returns into {Count} systemic causes.", total, clusters.Count);
+        return ApiResponse<ReturnClusterResult>.SuccessResponse(result, "Return clustering completed.");
+    }
+
     private async Task SaveAnalysisAsync(RootCauseResponse aiAnalysis, CancellationToken cancellationToken)
     {
         try
@@ -122,7 +173,7 @@ public class RootCauseAgentService : IRootCauseAgentService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to save root cause analysis � continuing");
+            _logger.LogWarning(ex, "Failed to save root cause analysis � continuing");
         }
     }
 
