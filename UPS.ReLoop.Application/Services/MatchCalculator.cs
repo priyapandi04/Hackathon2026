@@ -98,9 +98,12 @@ public static class MatchCalculator
 
     public static double CalculateConfidence(int matchScore, int detailCount)
     {
-        // Confidence based on how many factors contributed
+        // Confidence based on how many factors contributed.
+        // Returned on a 0-1 scale — the single convention shared by image,
+        // match and decision confidence across the whole pipeline.
         var factorWeight = detailCount / 4.0 * 100.0;
-        return Math.Min(Math.Round((matchScore + factorWeight) / 2.0, 0), 99);
+        var blended = Math.Min((matchScore + factorWeight) / 2.0, 99);
+        return Math.Round(blended / 100.0, 2);
     }
 
     public static double EstimateDistanceSaved(int matchScore)

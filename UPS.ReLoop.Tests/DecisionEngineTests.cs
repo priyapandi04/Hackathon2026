@@ -157,7 +157,7 @@ public class DecisionConfidenceEvaluatorTests
     [Fact]
     public void Evaluate_StrongSignals_HighConfidence()
     {
-        var result = DecisionConfidenceEvaluator.Evaluate(0.95, 90, policyResolved: true, policyRestricted: false);
+        var result = DecisionConfidenceEvaluator.Evaluate(0.95, 0.90, policyResolved: true, policyRestricted: false);
 
         Assert.False(result.ShouldEscalate);
         Assert.True(result.Score >= 0.8);
@@ -166,7 +166,7 @@ public class DecisionConfidenceEvaluatorTests
     [Fact]
     public void Evaluate_WeakSignals_Escalates()
     {
-        var result = DecisionConfidenceEvaluator.Evaluate(0.2, 10, policyResolved: false, policyRestricted: false);
+        var result = DecisionConfidenceEvaluator.Evaluate(0.2, 0.10, policyResolved: false, policyRestricted: false);
 
         Assert.True(result.ShouldEscalate);
         Assert.Equal("Low", result.Band);

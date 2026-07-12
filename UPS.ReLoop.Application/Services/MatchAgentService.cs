@@ -173,6 +173,15 @@ public class MatchAgentService : IMatchAgentService
         {
             var returnRequestId = Guid.TryParse(request.ProductId, out var parsed) ? parsed : Guid.Empty;
 
+            // find-match is a what-if preview: with no real ReturnRequest to link to,
+            // persisting would violate the MatchAgentResults→ReturnRequests FK and flood
+            // the table with orphan rows. Skip the save unless a valid return id is present.
+            if (returnRequestId == Guid.Empty)
+            {
+                _logger.LogDebug("Preview match for {ProductId} not persisted (no linked ReturnRequest).", request.ProductId);
+                return;
+            }
+
             await _matchResultSpRepo.SaveAsync(new SaveMatchResultParams(
                 ReturnRequestId: returnRequestId,
                 ProductId: request.ProductId,

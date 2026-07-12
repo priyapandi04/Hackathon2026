@@ -33,3 +33,40 @@ public record DashboardFilterDto
     public DateTime? FromDate { get; init; }
     public DateTime? ToDate { get; init; }
 }
+
+/// <summary>
+/// Real per-segment (product category) analytics for the partner/retailer portal.
+/// Every value is aggregated from live MatchAgentResults + ReturnRequests — no hardcoding.
+/// Economics are in INR.
+/// </summary>
+public record SegmentAnalyticsDto
+{
+    public string Segment { get; init; } = string.Empty;
+    public int TotalReturns { get; init; }
+    public int ItemsResold { get; init; }
+    public double DiversionRate { get; init; }
+    public decimal RevenueRecovered { get; init; }
+    public double Co2SavedKg { get; init; }
+    public double DistanceSavedKm { get; init; }
+    public double AvgMatchScore { get; init; }
+    public double AvgConfidence { get; init; }
+    public List<SegmentReasonDto> TopReasons { get; init; } = [];
+    public List<SegmentTrendPointDto> Trend { get; init; } = [];
+}
+
+/// <summary>Dominant return reason within a segment, with priced fix impact (INR, annualised).</summary>
+public record SegmentReasonDto
+{
+    public string Reason { get; init; } = string.Empty;
+    public int Count { get; init; }
+    public double Share { get; init; }
+    public string TopLocation { get; init; } = string.Empty;
+    public decimal EstimatedAnnualImpact { get; init; }
+}
+
+/// <summary>Monthly return volume for the segment trend chart.</summary>
+public record SegmentTrendPointDto
+{
+    public string Label { get; init; } = string.Empty;
+    public int Count { get; init; }
+}

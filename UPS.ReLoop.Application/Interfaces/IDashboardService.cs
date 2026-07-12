@@ -6,4 +6,7 @@ using UPS.ReLoop.Application.DTOs.Dashboard;
 public interface IDashboardService
 {
     Task<ApiResponse<DashboardMetricsDto>> GetMetricsAsync(DashboardFilterDto? filter, CancellationToken cancellationToken = default);
+
+    /// <summary>Per-segment (product-category) analytics for the partner portal, aggregated from live data.</summary>
+    Task<ApiResponse<List<SegmentAnalyticsDto>>> GetSegmentAnalyticsAsync(CancellationToken cancellationToken = default);
 }

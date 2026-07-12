@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IInventoryPoolRepository, InventoryPoolRepository>();
         services.AddScoped<IDemandHistoryRepository, DemandHistoryRepository>();
         services.AddScoped<IAgentRecommendationRepository, AgentRecommendationRepository>();
+        services.AddScoped<ISegmentAnalyticsRepository, SegmentAnalyticsRepository>();
 
         // Stored Procedure repositories
         services.AddScoped<IReturnRequestSpRepository, ReturnRequestSpRepository>();

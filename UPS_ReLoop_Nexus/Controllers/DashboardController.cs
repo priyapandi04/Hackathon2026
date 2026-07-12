@@ -44,4 +44,17 @@ public class DashboardController : ControllerBase
         var result = await _dashboardService.GetMetricsAsync(filter, cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    /// <summary>
+    /// Per-segment (product-category) analytics for the partner portal — real aggregates
+    /// (returns, resale rate, recovered revenue in INR, CO2, top root-cause reasons, trend).
+    /// </summary>
+    /// <response code="200">Returns live segment analytics.</response>
+    [HttpGet("segments")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<SegmentAnalyticsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSegments(CancellationToken cancellationToken)
+    {
+        var result = await _dashboardService.GetSegmentAnalyticsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

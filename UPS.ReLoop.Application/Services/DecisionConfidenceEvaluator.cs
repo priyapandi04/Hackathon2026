@@ -21,8 +21,8 @@ public static class DecisionConfidenceEvaluator
     {
         var factors = new List<string>();
 
-        // Normalise match confidence (stored 0-99) to 0-1.
-        var match01 = Math.Clamp(matchConfidence / 100.0, 0, 1);
+        // Match, image and policy signals are all on a 0-1 scale.
+        var match01 = Math.Clamp(matchConfidence, 0, 1);
         var image01 = imageConfidence is { } ic ? Math.Clamp(ic, 0, 1) : 0.5; // neutral if no image
         var policy01 = policyResolved ? 1.0 : 0.4;
 

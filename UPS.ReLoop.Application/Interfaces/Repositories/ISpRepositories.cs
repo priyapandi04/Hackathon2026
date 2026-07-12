@@ -7,6 +7,12 @@ using UPS.ReLoop.Application.DTOs.ReturnRequest;
 // Repository Interfaces
 // ========================
 
+/// <summary>Aggregates live MatchAgentResults + ReturnRequests into per-segment analytics.</summary>
+public interface ISegmentAnalyticsRepository
+{
+    Task<List<SegmentAnalyticsDto>> GetSegmentAnalyticsAsync(CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// Executes usp_CreateReturnRequest and usp_GetReturnRequestById.
 /// </summary>

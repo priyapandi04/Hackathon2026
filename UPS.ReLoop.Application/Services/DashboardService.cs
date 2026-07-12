@@ -10,14 +10,21 @@ using UPS.ReLoop.Application.Interfaces.Repositories;
 public class DashboardService : IDashboardService
 {
     private readonly IDashboardSpRepository _dashboardSpRepo;
+    private readonly ISegmentAnalyticsRepository _segmentRepo;
     private readonly IMemoryCache _cache;
     private readonly ILogger<DashboardService> _logger;
     private const string CacheKeyPrefix = "dashboard_metrics";
+    private const string SegmentCacheKey = "dashboard_segments";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
-    public DashboardService(IDashboardSpRepository dashboardSpRepo, IMemoryCache cache, ILogger<DashboardService> logger)
+    public DashboardService(
+        IDashboardSpRepository dashboardSpRepo,
+        ISegmentAnalyticsRepository segmentRepo,
+        IMemoryCache cache,
+        ILogger<DashboardService> logger)
     {
         _dashboardSpRepo = dashboardSpRepo;
+        _segmentRepo = segmentRepo;
         _cache = cache;
         _logger = logger;
     }
@@ -42,5 +49,19 @@ public class DashboardService : IDashboardService
             CacheDuration.TotalMinutes, metrics.TotalReturns, metrics.LocalMatches);
 
         return ApiResponse<DashboardMetricsDto>.SuccessResponse(metrics, "Dashboard metrics retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<List<SegmentAnalyticsDto>>> GetSegmentAnalyticsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cache.TryGetValue(SegmentCacheKey, out List<SegmentAnalyticsDto>? cached) && cached is not null)
+        {
+            return ApiResponse<List<SegmentAnalyticsDto>>.SuccessResponse(cached, "Segment analytics retrieved from cache.");
+        }
+
+        var segments = await _segmentRepo.GetSegmentAnalyticsAsync(cancellationToken);
+        _cache.Set(SegmentCacheKey, segments, CacheDuration);
+
+        _logger.LogInformation("Segment analytics computed for {Count} segments.", segments.Count);
+        return ApiResponse<List<SegmentAnalyticsDto>>.SuccessResponse(segments, "Segment analytics retrieved successfully.");
     }
 }
