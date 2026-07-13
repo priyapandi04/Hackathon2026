@@ -4,6 +4,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using UPS.ReLoop.Application.DTOs.Dashboard;
 using UPS.ReLoop.Application.Interfaces.Repositories;
+using UPS.ReLoop.Application.Services;
 
 /// <summary>
 /// Builds per-segment (product-category) analytics entirely from live data:
@@ -114,11 +115,40 @@ public class SegmentAnalyticsRepository : ISegmentAnalyticsRepository
                 DistanceSavedKm = Math.Round(rows.Sum(r => r.DistanceSavedKm), 0),
                 AvgMatchScore = Math.Round(rows.Average(r => r.MatchScore), 1),
                 AvgConfidence = Math.Round(rows.Average(r => r.Confidence), 2),
+                // Days-to-sell reuses the Match Agent's deterministic estimator so the
+                // dashboard figure is identical to what the per-item pipeline reports.
+                AvgDaysToSell = Math.Round(rows.Average(r => MatchCalculator.EstimateDaysToSell(r.MatchScore)), 1),
                 TopReasons = topReasons,
                 Trend = trend
             });
         }
 
         return result.OrderByDescending(s => s.RevenueRecovered).ToList();
+    }
+
+    /// <summary>Per-location aggregates for the executive charts (volume vs value).</summary>
+    public async Task<List<LocationAnalyticsDto>> GetLocationAnalyticsAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await _context.MatchAgentResults
+            .AsNoTracking()
+            .IgnoreQueryFilters()
+            .Where(m => !m.IsDeleted)
+            .Select(m => new { m.Location, m.CostSaved, m.Co2Saved, m.MatchScore })
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count == 0) return [];
+
+        return rows
+            .GroupBy(r => string.IsNullOrWhiteSpace(r.Location) ? "Unknown" : r.Location)
+            .Select(g => new LocationAnalyticsDto
+            {
+                Location = g.Key,
+                Returns = g.Count(),
+                CostRecovered = Math.Round((decimal)g.Sum(r => r.CostSaved), 0),
+                Co2SavedKg = Math.Round(g.Sum(r => r.Co2Saved), 1),
+                AvgMatchScore = Math.Round(g.Average(r => r.MatchScore), 1)
+            })
+            .OrderByDescending(l => l.Returns)
+            .ToList();
     }
 }

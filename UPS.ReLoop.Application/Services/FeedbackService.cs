@@ -97,6 +97,37 @@ public class FeedbackService : IFeedbackService
     private static string Normalize(string action) =>
         char.ToUpperInvariant(action[0]) + action[1..].ToLowerInvariant();
 
+    /// <summary>
+    /// Builds the singleton store pre-seeded with synthetic associate reviews so the
+    /// human-in-the-loop accept-rate curve is populated on a fresh start. In production
+    /// this is replaced by the persisted AgentFeedback table.
+    /// </summary>
+    public static ConcurrentBag<StoredFeedback> CreateSeededStore()
+    {
+        var bag = new ConcurrentBag<StoredFeedback>();
+        string[] fields = ["Resale Price", "Condition Grade", "Category", "Destination Channel"];
+        for (var i = 0; i < 480; i++)
+        {
+            var roll = i % 100;
+            string action;
+            string? field = null;
+            if (roll < 87) action = "Accept";
+            else if (roll < 96) { action = "Modify"; field = fields[i % fields.Length]; }
+            else action = "Reject";
+
+            bag.Add(new StoredFeedback
+            {
+                FeedbackId = Guid.NewGuid(),
+                ReturnRequestId = Guid.NewGuid(),
+                Action = action,
+                CorrectedField = field,
+                AssociateId = $"assoc-{(i % 12) + 1:00}",
+                CapturedAt = DateTime.UtcNow.AddHours(-i)
+            });
+        }
+        return bag;
+    }
+
     /// <summary>In-memory feedback record (singleton-scoped for the MVP).</summary>
     public class StoredFeedback
     {

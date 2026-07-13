@@ -38,13 +38,18 @@ public class MatchResultSpRepository : IMatchResultSpRepository
                 new SqlParameter("@DistanceSavedKm", SqlDbType.Float) { Value = parameters.DistanceSavedKm },
                 new SqlParameter("@CostSaved", SqlDbType.Float) { Value = parameters.CostSaved },
                 new SqlParameter("@Co2Saved", SqlDbType.Float) { Value = parameters.Co2Saved },
+                new SqlParameter("@SalePrice", SqlDbType.Decimal) { Precision = 18, Scale = 2, Value = parameters.SalePrice },
+                new SqlParameter("@ResaleMargin", SqlDbType.Decimal) { Precision = 18, Scale = 2, Value = parameters.ResaleMargin },
+                new SqlParameter("@ResaleServiceFee", SqlDbType.Decimal) { Precision = 18, Scale = 2, Value = parameters.ResaleServiceFee },
+                new SqlParameter("@Co2Value", SqlDbType.Decimal) { Precision = 18, Scale = 2, Value = parameters.Co2Value },
+                new SqlParameter("@NetValue", SqlDbType.Decimal) { Precision = 18, Scale = 2, Value = parameters.NetValue },
                 new SqlParameter("@Explanation", SqlDbType.NVarChar, 4000) { Value = parameters.Explanation },
                 new SqlParameter("@MatchDetailsJson", SqlDbType.NVarChar, -1) { Value = parameters.MatchDetailsJson }
             };
 
             var results = await _context.Database
                 .SqlQueryRaw<GuidResult>(
-                    "EXEC [dbo].[usp_SaveMatchResult] @ReturnRequestId, @ProductId, @ProductName, @Category, @Location, @Condition, @MatchScore, @Recommendation, @Confidence, @DistanceSavedKm, @CostSaved, @Co2Saved, @Explanation, @MatchDetailsJson",
+                    "EXEC [dbo].[usp_SaveMatchResult] @ReturnRequestId, @ProductId, @ProductName, @Category, @Location, @Condition, @MatchScore, @Recommendation, @Confidence, @DistanceSavedKm, @CostSaved, @Co2Saved, @SalePrice, @ResaleMargin, @ResaleServiceFee, @Co2Value, @NetValue, @Explanation, @MatchDetailsJson",
                     sqlParams)
                 .ToListAsync(cancellationToken);
 

@@ -16,6 +16,13 @@ public class MatchAgentResult : BaseEntity
     public double DistanceSavedKm { get; set; }
     public double CostSaved { get; set; }
     public double Co2Saved { get; set; }
+    // Persisted triple-value economics (INR) so historical aggregates can show the
+    // full net value, not just reverse-freight avoided. Computed by RevenueCalculator.
+    public decimal SalePrice { get; set; }
+    public decimal ResaleMargin { get; set; }
+    public decimal ResaleServiceFee { get; set; }
+    public decimal Co2Value { get; set; }
+    public decimal NetValue { get; set; }
     public string Explanation { get; set; } = string.Empty;
     public string MatchDetailsJson { get; set; } = "[]";
     public ReturnRequest ReturnRequest { get; set; } = null!;

@@ -71,6 +71,11 @@ public class MatchAgentResultConfiguration : IEntityTypeConfiguration<MatchAgent
         builder.Property(e => e.Location).HasMaxLength(200).IsRequired();
         builder.Property(e => e.Condition).HasMaxLength(50).IsRequired();
         builder.Property(e => e.Recommendation).HasMaxLength(200).IsRequired();
+        builder.Property(e => e.SalePrice).HasPrecision(18, 2);
+        builder.Property(e => e.ResaleMargin).HasPrecision(18, 2);
+        builder.Property(e => e.ResaleServiceFee).HasPrecision(18, 2);
+        builder.Property(e => e.Co2Value).HasPrecision(18, 2);
+        builder.Property(e => e.NetValue).HasPrecision(18, 2);
         builder.Property(e => e.Explanation).HasMaxLength(4000);
         builder.Property(e => e.MatchDetailsJson).HasColumnType("nvarchar(max)");
 

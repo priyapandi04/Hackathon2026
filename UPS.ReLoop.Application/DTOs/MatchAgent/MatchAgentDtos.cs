@@ -5,7 +5,8 @@ public record MatchAgentRequest(
     string ProductName,
     string Category,
     string Location,
-    string Condition);
+    string Condition,
+    decimal SalePrice = 0);
 
 public class MatchAgentResponse
 {

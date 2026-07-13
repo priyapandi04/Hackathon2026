@@ -26,8 +26,9 @@ public static class DependencyInjection
         services.AddSingleton<IDiversionAgentService, DiversionAgentService>();
         services.AddSingleton<AutoApprovalMetrics>();
 
-        // Human-in-the-loop feedback ("learns daily"). In-memory store for the MVP.
-        services.AddSingleton<ConcurrentBag<FeedbackService.StoredFeedback>>();
+        // Human-in-the-loop feedback ("learns daily"). In-memory store for the MVP,
+        // pre-seeded with synthetic associate reviews so the accept-rate curve is live.
+        services.AddSingleton(_ => FeedbackService.CreateSeededStore());
         services.AddScoped<IFeedbackService, FeedbackService>();
 
         services.AddScoped<IReturnProcessingOrchestrator, ReturnProcessingOrchestrator>();

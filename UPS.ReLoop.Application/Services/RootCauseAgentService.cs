@@ -132,7 +132,7 @@ public class RootCauseAgentService : IRootCauseAgentService
                     .OrderByDescending(g => g.Count())
                     .First().Key;
 
-                var pct = Math.Round((double)count / total * 100, 1);
+                var pct = Math.Round((double)dominant.Count() / count * 100, 1);
                 // Illustrative annualised impact: dominant-reason volume scaled to a
                 // year (x260 operating days) x avg reverse cost avoided if fixed.
                 var annualImpact = Math.Round(dominant.Count() * 260m * avgReverseCostPerItem, 0);
@@ -144,9 +144,9 @@ public class RootCauseAgentService : IRootCauseAgentService
                     Count = count,
                     Percentage = pct,
                     TopLocation = topLocation,
-                    EstimatedAnnualImpactUsd = annualImpact,
+                    EstimatedAnnualImpact = annualImpact,
                     FixTicket = $"{pct:0}% of {catGroup.Key} returns trace to '{dominant.Key}' " +
-                                $"(hotspot: {topLocation}). Projected ~${annualImpact:N0}/yr if fixed at source."
+                                $"(hotspot: {topLocation}). Projected ~\u20b9{annualImpact:N0}/yr if fixed at source."
                 };
             })
             .OrderByDescending(c => c.Count)

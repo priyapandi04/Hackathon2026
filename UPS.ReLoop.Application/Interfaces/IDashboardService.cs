@@ -9,4 +9,7 @@ public interface IDashboardService
 
     /// <summary>Per-segment (product-category) analytics for the partner portal, aggregated from live data.</summary>
     Task<ApiResponse<List<SegmentAnalyticsDto>>> GetSegmentAnalyticsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Per-location analytics (volume + INR recovered) for the executive charts.</summary>
+    Task<ApiResponse<List<LocationAnalyticsDto>>> GetLocationAnalyticsAsync(CancellationToken cancellationToken = default);
 }

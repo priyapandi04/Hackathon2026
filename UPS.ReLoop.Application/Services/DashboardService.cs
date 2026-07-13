@@ -15,6 +15,7 @@ public class DashboardService : IDashboardService
     private readonly ILogger<DashboardService> _logger;
     private const string CacheKeyPrefix = "dashboard_metrics";
     private const string SegmentCacheKey = "dashboard_segments";
+    private const string LocationCacheKey = "dashboard_locations";
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
     public DashboardService(
@@ -63,5 +64,19 @@ public class DashboardService : IDashboardService
 
         _logger.LogInformation("Segment analytics computed for {Count} segments.", segments.Count);
         return ApiResponse<List<SegmentAnalyticsDto>>.SuccessResponse(segments, "Segment analytics retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<List<LocationAnalyticsDto>>> GetLocationAnalyticsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_cache.TryGetValue(LocationCacheKey, out List<LocationAnalyticsDto>? cached) && cached is not null)
+        {
+            return ApiResponse<List<LocationAnalyticsDto>>.SuccessResponse(cached, "Location analytics retrieved from cache.");
+        }
+
+        var locations = await _segmentRepo.GetLocationAnalyticsAsync(cancellationToken);
+        _cache.Set(LocationCacheKey, locations, CacheDuration);
+
+        _logger.LogInformation("Location analytics computed for {Count} locations.", locations.Count);
+        return ApiResponse<List<LocationAnalyticsDto>>.SuccessResponse(locations, "Location analytics retrieved successfully.");
     }
 }

@@ -235,7 +235,8 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     request.ProductName,
                     request.Category,
                     request.Location,
-                    condition),
+                    condition,
+                    SalePrice: ResolveBasePrice(request)),
                 cancellationToken);
 
             if (matchResult.Success && matchResult.Data is not null)

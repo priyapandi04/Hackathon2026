@@ -12,6 +12,13 @@ public record DashboardMetricsDto
     public double DistanceSavedKm { get; init; }
     public decimal CostSaved { get; init; }
     public double Co2SavedKg { get; init; }
+    // Full triple-value economics (INR). TotalValueRecovered = freight avoided
+    // + resale margin + resale service fee + CO2 value - AI cost (the hero figure).
+    public decimal TotalValueRecovered { get; init; }
+    public decimal ResaleMargin { get; init; }
+    public decimal ResaleServiceFee { get; init; }
+    public decimal Co2Value { get; init; }
+    public decimal AiCost { get; init; }
     public List<RootCauseInsightDto> RootCauseInsights { get; init; } = [];
 }
 
@@ -50,6 +57,7 @@ public record SegmentAnalyticsDto
     public double DistanceSavedKm { get; init; }
     public double AvgMatchScore { get; init; }
     public double AvgConfidence { get; init; }
+    public double AvgDaysToSell { get; init; }
     public List<SegmentReasonDto> TopReasons { get; init; } = [];
     public List<SegmentTrendPointDto> Trend { get; init; } = [];
 }
@@ -69,4 +77,18 @@ public record SegmentTrendPointDto
 {
     public string Label { get; init; } = string.Empty;
     public int Count { get; init; }
+}
+
+/// <summary>
+/// Per-location analytics for the executive map/bar charts. Aggregated live from
+/// MatchAgentResults so "volume by region" and "value recovered by location" are
+/// two genuinely different views (count vs INR), never a debug feed.
+/// </summary>
+public record LocationAnalyticsDto
+{
+    public string Location { get; init; } = string.Empty;
+    public int Returns { get; init; }
+    public decimal CostRecovered { get; init; }
+    public double Co2SavedKg { get; init; }
+    public double AvgMatchScore { get; init; }
 }

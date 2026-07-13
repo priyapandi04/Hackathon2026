@@ -66,6 +66,11 @@ public class DashboardSpRepository : IDashboardSpRepository
                 DistanceSavedKm = metrics.DistanceSavedKm,
                 CostSaved = (decimal)metrics.CostSaved,
                 Co2SavedKg = metrics.Co2SavedKg,
+                TotalValueRecovered = metrics.TotalValueRecovered,
+                ResaleMargin = metrics.ResaleMargin,
+                ResaleServiceFee = metrics.ResaleServiceFee,
+                Co2Value = metrics.Co2Value,
+                AiCost = metrics.AiCost,
                 RootCauseInsights = insights.Select(i => new RootCauseInsightDto
                 {
                     Reason = i.Reason,
@@ -90,6 +95,11 @@ public class DashboardSpRepository : IDashboardSpRepository
         public double DistanceSavedKm { get; set; }
         public double CostSaved { get; set; }
         public double Co2SavedKg { get; set; }
+        public decimal TotalValueRecovered { get; set; }
+        public decimal ResaleMargin { get; set; }
+        public decimal ResaleServiceFee { get; set; }
+        public decimal Co2Value { get; set; }
+        public decimal AiCost { get; set; }
     }
 
     private class RootCauseInsightSpResult

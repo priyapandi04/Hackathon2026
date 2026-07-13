@@ -57,4 +57,17 @@ public class DashboardController : ControllerBase
         var result = await _dashboardService.GetSegmentAnalyticsAsync(cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    /// <summary>
+    /// Per-location analytics for the executive charts — returns volume by region and
+    /// INR value recovered by location (two distinct views), aggregated live.
+    /// </summary>
+    /// <response code="200">Returns live location analytics.</response>
+    [HttpGet("locations")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<LocationAnalyticsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLocations(CancellationToken cancellationToken)
+    {
+        var result = await _dashboardService.GetLocationAnalyticsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

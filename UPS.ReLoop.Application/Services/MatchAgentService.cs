@@ -182,6 +182,13 @@ public class MatchAgentService : IMatchAgentService
                 return;
             }
 
+            // Persist the full triple-value economics (INR) alongside the match so the
+            // historical dashboard aggregate reflects real net value, not freight only.
+            var econ = RevenueCalculator.Calculate(
+                freightAvoided: (decimal)response.CostSaved,
+                salePrice: request.SalePrice,
+                co2SavedKg: response.Co2Saved);
+
             await _matchResultSpRepo.SaveAsync(new SaveMatchResultParams(
                 ReturnRequestId: returnRequestId,
                 ProductId: request.ProductId,
@@ -195,6 +202,11 @@ public class MatchAgentService : IMatchAgentService
                 DistanceSavedKm: response.DistanceSavedKm,
                 CostSaved: response.CostSaved,
                 Co2Saved: response.Co2Saved,
+                SalePrice: request.SalePrice,
+                ResaleMargin: econ.ResaleMargin,
+                ResaleServiceFee: econ.ResaleServiceFee,
+                Co2Value: econ.Co2ValueUsd,
+                NetValue: econ.TotalNetValue,
                 Explanation: response.Explanation,
                 MatchDetailsJson: JsonSerializer.Serialize(details)
             ), cancellationToken);

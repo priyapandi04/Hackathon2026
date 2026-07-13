@@ -60,6 +60,6 @@ public class ReturnCluster
     public int Count { get; set; }
     public double Percentage { get; set; }
     public string TopLocation { get; set; } = string.Empty;
-    public decimal EstimatedAnnualImpactUsd { get; set; }
+    public decimal EstimatedAnnualImpact { get; set; }
     public string FixTicket { get; set; } = string.Empty;
 }

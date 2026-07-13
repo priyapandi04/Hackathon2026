@@ -11,6 +11,9 @@ using UPS.ReLoop.Application.DTOs.ReturnRequest;
 public interface ISegmentAnalyticsRepository
 {
     Task<List<SegmentAnalyticsDto>> GetSegmentAnalyticsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Per-location aggregates (returns count, INR recovered, CO2) from live match results.</summary>
+    Task<List<LocationAnalyticsDto>> GetLocationAnalyticsAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -99,6 +102,11 @@ public record SaveMatchResultParams(
     double DistanceSavedKm,
     double CostSaved,
     double Co2Saved,
+    decimal SalePrice,
+    decimal ResaleMargin,
+    decimal ResaleServiceFee,
+    decimal Co2Value,
+    decimal NetValue,
     string Explanation,
     string MatchDetailsJson);
 
