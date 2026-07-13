@@ -29,6 +29,7 @@ public static class DependencyInjection
         // Human-in-the-loop feedback ("learns daily"). In-memory store for the MVP.
         services.AddSingleton<ConcurrentBag<FeedbackService.StoredFeedback>>();
         services.AddScoped<IFeedbackService, FeedbackService>();
+        services.AddScoped<IBuyerService, BuyerService>();
 
         services.AddScoped<IReturnProcessingOrchestrator, ReturnProcessingOrchestrator>();
         return services;

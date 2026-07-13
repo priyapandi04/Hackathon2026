@@ -33,3 +33,27 @@ public record DashboardFilterDto
     public DateTime? FromDate { get; init; }
     public DateTime? ToDate { get; init; }
 }
+
+/// <summary>
+/// One data point in the daily savings/diversion trend line (30-day window).
+/// </summary>
+public record DashboardTrendPointDto
+{
+    public string Date { get; init; } = string.Empty;
+    public int Returns { get; init; }
+    public int LocalMatches { get; init; }
+    public double CostSaved { get; init; }
+    public double DistanceSavedKm { get; init; }
+    public double Co2SavedKg { get; init; }
+}
+
+/// <summary>
+/// Performance metrics for a single AI agent.
+/// </summary>
+public record AgentTelemetryDto
+{
+    public string AgentName { get; init; } = string.Empty;
+    public int DecisionsMade { get; init; }
+    public double Precision { get; init; }
+    public double EscalationRate { get; init; }
+}

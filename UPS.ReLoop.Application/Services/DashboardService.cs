@@ -43,4 +43,34 @@ public class DashboardService : IDashboardService
 
         return ApiResponse<DashboardMetricsDto>.SuccessResponse(metrics, "Dashboard metrics retrieved successfully.");
     }
+
+    public async Task<ApiResponse<List<DashboardTrendPointDto>>> GetTrendAsync(int days = 30, CancellationToken cancellationToken = default)
+    {
+        var cacheKey = $"dashboard_trend_{days}d";
+
+        if (_cache.TryGetValue(cacheKey, out List<DashboardTrendPointDto>? cached) && cached is not null)
+            return ApiResponse<List<DashboardTrendPointDto>>.SuccessResponse(cached, "Dashboard trend from cache.");
+
+        _logger.LogInformation("Loading dashboard trend for {Days} days", days);
+        var trend = await _dashboardSpRepo.GetTrendAsync(days, cancellationToken);
+        var list = trend.ToList();
+        _cache.Set(cacheKey, list, CacheDuration);
+
+        return ApiResponse<List<DashboardTrendPointDto>>.SuccessResponse(list, $"{list.Count} daily trend points retrieved.");
+    }
+
+    public async Task<ApiResponse<List<AgentTelemetryDto>>> GetAgentTelemetryAsync(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "dashboard_agent_telemetry";
+
+        if (_cache.TryGetValue(cacheKey, out List<AgentTelemetryDto>? cached) && cached is not null)
+            return ApiResponse<List<AgentTelemetryDto>>.SuccessResponse(cached, "Agent telemetry from cache.");
+
+        _logger.LogInformation("Loading agent telemetry");
+        var telemetry = await _dashboardSpRepo.GetAgentTelemetryAsync(cancellationToken);
+        var list = telemetry.ToList();
+        _cache.Set(cacheKey, list, CacheDuration);
+
+        return ApiResponse<List<AgentTelemetryDto>>.SuccessResponse(list, $"{list.Count} agent metrics retrieved.");
+    }
 }
