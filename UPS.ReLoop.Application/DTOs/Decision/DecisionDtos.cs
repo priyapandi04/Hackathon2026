@@ -88,7 +88,7 @@ public class RevenueOpportunity
     public decimal FreightAvoided { get; set; }
     public decimal ResaleMargin { get; set; }
     public decimal ResaleServiceFee { get; set; }
-    public decimal Co2ValueUsd { get; set; }
+    public decimal Co2ValueInr { get; set; }
     public decimal AiCost { get; set; }
     public decimal TotalNetValue { get; set; }
 }

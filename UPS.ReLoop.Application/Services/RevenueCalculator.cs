@@ -33,7 +33,7 @@ public static class RevenueCalculator
             FreightAvoided = Math.Round(freightAvoided, 2),
             ResaleMargin = margin,
             ResaleServiceFee = serviceFee,
-            Co2ValueUsd = co2Value,
+            Co2ValueInr = co2Value,
             AiCost = AiCostPerItem,
             TotalNetValue = total
         };

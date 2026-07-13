@@ -191,7 +191,11 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         }
         else
         {
-            _logger.LogInformation("Step 2 skipped � No image provided for PackageId: {PackageId}", request.PackageId);
+            // No photo supplied (synthetic-data demo path): grade the item deterministically
+            // from the reported condition so the pipeline's condition signal is never blank.
+            response.ImageValidation = BuildConditionFallback(request.Condition);
+            _logger.LogInformation("Step 2 fallback — no image; graded from reported condition '{Reported}' -> {Cond} ({Conf})",
+                request.Condition, response.ImageValidation.Condition, response.ImageValidation.Confidence);
         }
 
         // ???????????????????????????????????????????????????
@@ -228,7 +232,8 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         // ???????????????????????????????????????????????????
         try
         {
-            var condition = response.ImageValidation?.Condition ?? "Unknown";
+            var condition = response.ImageValidation?.Condition
+                ?? (string.IsNullOrWhiteSpace(request.Condition) ? "Unknown" : request.Condition);
             var matchResult = await _matchAgentService.FindLocalMatchAsync(
                 new MatchAgentRequest(
                     request.PackageId.ToString(),
@@ -399,4 +404,32 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 
     private static decimal ResolveBasePrice(ReturnProcessingRequest request) =>
         request.BasePrice is { } p and > 0 ? p : DefaultBasePrice;
+
+    /// <summary>
+    /// Deterministic condition grade used when no photo is supplied (synthetic-data path),
+    /// so the image-validation step always contributes a real condition + confidence signal.
+    /// </summary>
+    private static ImageValidationResult BuildConditionFallback(string? reportedCondition)
+    {
+        var condition = string.IsNullOrWhiteSpace(reportedCondition) ? "Good" : reportedCondition.Trim();
+        var (damageScore, confidence, eligible) = condition.ToLowerInvariant() switch
+        {
+            "excellent" or "new" or "like new" => (5, 0.92, true),
+            "good" => (20, 0.86, true),
+            "fair" => (45, 0.72, true),
+            "poor" or "damaged" => (78, 0.68, false),
+            _ => (30, 0.75, true),
+        };
+
+        return new ImageValidationResult
+        {
+            Condition = condition,
+            DamageScore = damageScore,
+            Eligible = eligible,
+            Confidence = confidence,
+            Remarks = eligible
+                ? $"Graded from reported condition '{condition}' (no photo supplied)."
+                : $"Reported condition '{condition}' fails resale grade."
+        };
+    }
 }

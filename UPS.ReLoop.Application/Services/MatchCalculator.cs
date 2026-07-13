@@ -16,6 +16,43 @@ public static class MatchCalculator
         "New", "Like New", "Good", "Excellent", "Refurbished"
     };
 
+    // Category resale-velocity priors (0-100) for the hyperlocal demand model.
+    // These encode how quickly each category clears on local secondary channels
+    // (electronics/beauty move fastest, books slowest) and let the agent reason
+    // about products it has never seen before, not only seeded SKUs.
+    private static readonly Dictionary<string, int> CategoryDemandIndexMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Electronics"] = 90,
+        ["Beauty"] = 84,
+        ["Apparel"] = 82,
+        ["Footwear"] = 80,
+        ["Accessories"] = 76,
+        ["Sports"] = 72,
+        ["Toys"] = 70,
+        ["Home"] = 66,
+        ["Books"] = 46,
+    };
+
+    /// <summary>Category resale-velocity index (0-100). Unknown categories get a neutral 62.</summary>
+    public static int CategoryDemandIndex(string? category)
+        => !string.IsNullOrWhiteSpace(category) && CategoryDemandIndexMap.TryGetValue(category.Trim(), out var v)
+            ? v
+            : 62;
+
+    /// <summary>Resale points for the reported condition, scaled to <paramref name="maxPoints"/>.</summary>
+    public static int ConditionResaleScore(string? condition, int maxPoints)
+    {
+        var fraction = condition?.Trim().ToLowerInvariant() switch
+        {
+            "new" or "like new" or "excellent" or "refurbished" => 1.0,
+            "good" => 0.75,
+            "fair" => 0.45,
+            "poor" or "damaged" => 0.2,
+            _ => 0.6,
+        };
+        return (int)Math.Round(fraction * maxPoints);
+    }
+
     public static (int Score, List<MatchDetail> Details) Calculate(
         MatchAgentRequest request,
         IReadOnlyList<InventoryPool> inventoryMatches,
@@ -98,10 +135,13 @@ public static class MatchCalculator
 
     public static double CalculateConfidence(int matchScore, int detailCount)
     {
-        // Confidence based on how many factors contributed.
+        // Confidence blends the match strength with how many factors backed it.
+        // Three contributing signals (category, region, condition) is the healthy
+        // baseline of the demand model, so the denominator is 3; exact-SKU hits
+        // (local inventory / proven demand) push confidence higher still.
         // Returned on a 0-1 scale — the single convention shared by image,
         // match and decision confidence across the whole pipeline.
-        var factorWeight = detailCount / 4.0 * 100.0;
+        var factorWeight = Math.Min(detailCount / 3.0, 1.4) * 100.0;
         var blended = Math.Min((matchScore + factorWeight) / 2.0, 99);
         return Math.Round(blended / 100.0, 2);
     }

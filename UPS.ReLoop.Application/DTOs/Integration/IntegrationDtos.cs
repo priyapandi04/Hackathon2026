@@ -15,6 +15,9 @@ public record ReturnProcessingRequest
     public string? ImageBase64 { get; init; }
     public string? AdditionalContext { get; init; }
 
+    /// <summary>Reported item condition (Excellent/Good/Fair/Poor) — grades the item when no photo is supplied.</summary>
+    public string? Condition { get; init; }
+
     /// <summary>Holding days already completed (0-10) — drives the deterministic clock.</summary>
     public int? HoldingDaysCompleted { get; init; }
 

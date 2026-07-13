@@ -49,11 +49,12 @@ public class MatchAgentService : IMatchAgentService
             // Step 1: Get inventory by product via SP
             var inventoryItems = await _inventoryPoolSpRepo.GetByProductAsync(request.ProductId, request.Location, cancellationToken);
 
-            // Step 2: Get demand history via SP
+            // Step 2: Get demand history via SP (product-specific) + regional demand (grounded market signal)
             var demandItems = await _demandHistorySpRepo.GetAsync(request.ProductId, request.Location, cancellationToken);
+            var regionalDemand = await _demandRepo.GetByRegionAsync(request.Location, cancellationToken);
 
             // Step 3: Calculate match score, distance saved, cost saved, CO2 saved
-            var (matchScore, details) = CalculateMatchScore(request, inventoryItems, demandItems);
+            var (matchScore, details) = CalculateMatchScore(request, inventoryItems, demandItems, regionalDemand);
             var recommendation = MatchCalculator.DetermineRecommendation(matchScore);
             var confidence = MatchCalculator.CalculateConfidence(matchScore, details.Count);
             var distanceSaved = MatchCalculator.EstimateDistanceSaved(matchScore);
@@ -95,72 +96,79 @@ public class MatchAgentService : IMatchAgentService
     private static (int Score, List<MatchDetail> Details) CalculateMatchScore(
         MatchAgentRequest request,
         IReadOnlyList<InventoryItemDto> inventoryItems,
-        IReadOnlyList<DemandHistoryDto> demandItems)
+        IReadOnlyList<DemandHistoryDto> demandItems,
+        IReadOnlyList<DemandHistory> regionalDemand)
     {
         var details = new List<MatchDetail>();
         int totalScore = 0;
 
-        // Rule 1: Same Product match in local inventory
-        var productMatch = inventoryItems.Any(i => i.ProductId == request.ProductId);
-        if (productMatch)
+        // Factor 1: Category resale velocity (0-45) — hyperlocal demand model.
+        // Lets the agent score products it has never seen before, not only seeded SKUs.
+        var categoryIndex = MatchCalculator.CategoryDemandIndex(request.Category);
+        var categoryPoints = (int)Math.Round(categoryIndex / 100.0 * 45);
+        totalScore += categoryPoints;
+        details.Add(new MatchDetail
         {
-            totalScore += 50;
+            Factor = "Category Demand",
+            Points = categoryPoints,
+            Reason = $"'{request.Category}' resale-velocity index {categoryIndex}/100 in the local demand model"
+        });
+
+        // Factor 2: Regional demand strength (0-25) — grounded in DemandHistory for the hub.
+        var regionScore = regionalDemand.Count > 0 ? regionalDemand.Average(d => d.DemandScore) : 0.0;
+        var regionPoints = (int)Math.Round(Math.Clamp(regionScore, 0, 100) / 100.0 * 25);
+        if (regionPoints > 0)
+        {
+            totalScore += regionPoints;
             details.Add(new MatchDetail
             {
-                Factor = "Same Product",
-                Points = 50,
-                Reason = $"Product '{request.ProductId}' found in local inventory pool"
+                Factor = "Regional Demand",
+                Points = regionPoints,
+                Reason = $"Avg local demand {regionScore:F0}/100 across {regionalDemand.Count} SKUs in '{request.Location}'"
             });
         }
 
-        // Rule 2: Same Area demand
-        var areaMatch = demandItems.Any(d =>
-            d.Region.Equals(request.Location, StringComparison.OrdinalIgnoreCase));
-        if (areaMatch)
+        // Factor 3: Condition (0-20).
+        var conditionPoints = MatchCalculator.ConditionResaleScore(request.Condition, 20);
+        totalScore += conditionPoints;
+        details.Add(new MatchDetail
         {
-            totalScore += 20;
+            Factor = "Condition",
+            Points = conditionPoints,
+            Reason = $"Reported condition '{request.Condition}' resale-graded at {conditionPoints}/20"
+        });
+
+        // Factor 4: Exact local match bonus (0-10) — strong signal when the same SKU
+        // is already pooled locally or already proven in this hub's demand history.
+        if (inventoryItems.Any(i => i.ProductId == request.ProductId))
+        {
+            totalScore += 6;
             details.Add(new MatchDetail
             {
-                Factor = "Same Area",
-                Points = 20,
-                Reason = $"Active demand detected in region '{request.Location}'"
+                Factor = "Local Inventory",
+                Points = 6,
+                Reason = $"Product '{request.ProductId}' already pooled locally"
             });
         }
 
-        // Rule 3: High Demand Score
-        var maxDemandScore = demandItems
+        var maxProductDemand = demandItems
             .Where(d => d.ProductId == request.ProductId)
             .Select(d => d.DemandScore)
             .DefaultIfEmpty(0)
             .Max();
 
-        if (maxDemandScore >= 70.0)
+        if (maxProductDemand >= 70.0)
         {
-            totalScore += 20;
+            totalScore += 4;
             details.Add(new MatchDetail
             {
-                Factor = "High Demand",
-                Points = 20,
-                Reason = $"Demand score {maxDemandScore:F1} exceeds threshold of 70"
+                Factor = "Proven SKU Demand",
+                Points = 4,
+                Reason = $"This SKU already scores demand {maxProductDemand:F0} in-region"
             });
         }
 
-        // Rule 4: Good Condition
-        var goodConditions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "New", "Like New", "Good", "Excellent", "Refurbished" };
-
-        if (goodConditions.Contains(request.Condition))
-        {
-            totalScore += 10;
-            details.Add(new MatchDetail
-            {
-                Factor = "Good Condition",
-                Points = 10,
-                Reason = $"Product condition '{request.Condition}' qualifies for resale"
-            });
-        }
-
-        return (Math.Min(totalScore, 100), details);
+        return (Math.Clamp(totalScore, 0, 100), details);
     }
 
     private async Task SaveMatchResultAsync(
@@ -205,7 +213,7 @@ public class MatchAgentService : IMatchAgentService
                 SalePrice: request.SalePrice,
                 ResaleMargin: econ.ResaleMargin,
                 ResaleServiceFee: econ.ResaleServiceFee,
-                Co2Value: econ.Co2ValueUsd,
+                Co2Value: econ.Co2ValueInr,
                 NetValue: econ.TotalNetValue,
                 Explanation: response.Explanation,
                 MatchDetailsJson: JsonSerializer.Serialize(details)
