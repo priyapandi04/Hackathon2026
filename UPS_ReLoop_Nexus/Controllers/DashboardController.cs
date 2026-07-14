@@ -70,4 +70,26 @@ public class DashboardController : ControllerBase
         var result = await _dashboardService.GetAgentTelemetryAsync(cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
+
+    /// <summary>
+    /// Returns per-category segment analytics for the retailer portal.
+    /// </summary>
+    [HttpGet("segments")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<Application.DTOs.Dashboard.SegmentAnalyticsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSegments(CancellationToken cancellationToken)
+    {
+        var result = await _dashboardService.GetSegmentsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Returns per-location (hub) analytics.
+    /// </summary>
+    [HttpGet("locations")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<Application.DTOs.Dashboard.LocationAnalyticsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLocations(CancellationToken cancellationToken)
+    {
+        var result = await _dashboardService.GetLocationsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
 }

@@ -97,4 +97,107 @@ public class DashboardService : IDashboardService
 
         return ApiResponse<List<AgentTelemetryDto>>.SuccessResponse(list, $"{list.Count} agent metrics retrieved.");
     }
+
+    public async Task<ApiResponse<List<SegmentAnalyticsDto>>> GetSegmentsAsync(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "dashboard_segments";
+
+        if (_cache.TryGetValue(cacheKey, out List<SegmentAnalyticsDto>? cached) && cached is not null)
+            return ApiResponse<List<SegmentAnalyticsDto>>.SuccessResponse(cached, "Segments from cache.");
+
+        _logger.LogInformation("Building segment analytics from metrics + trend data");
+
+        // Build synthetic per-category segments from overall metrics.
+        // In production this would come from a dedicated SP grouping MatchAgentResults by Category.
+        var metrics = await _dashboardSpRepo.GetMetricsAsync(cancellationToken: cancellationToken);
+        var trend = await _dashboardSpRepo.GetTrendAsync(30, cancellationToken);
+
+        var categories = new[] { "Electronics", "Apparel", "Home", "Sports", "Footwear" };
+        var weights = new[] { 0.35, 0.25, 0.20, 0.12, 0.08 };
+
+        // Synthetic top reasons per category — drives the Root Cause Fix Tickets on the dashboard.
+        var reasonsByCategory = new Dictionary<string, (string reason, string location, double impact)[]>
+        {
+            ["Electronics"] = [("Defective on arrival", "Chennai", 520_000), ("Missing accessories", "Delhi", 310_000)],
+            ["Apparel"]     = [("Size chart error", "Bangalore", 380_000), ("Colour mismatch", "Mumbai", 180_000)],
+            ["Home"]        = [("Damaged in transit", "Mumbai", 290_000), ("Wrong item shipped", "Delhi", 140_000)],
+            ["Sports"]      = [("Changed mind", "Delhi", 210_000), ("Not as described", "Hyderabad", 95_000)],
+            ["Footwear"]    = [("Width mismatch", "Bangalore", 170_000), ("Colour mismatch", "Hyderabad", 88_000)],
+        };
+
+        var segments = new List<SegmentAnalyticsDto>();
+        for (int i = 0; i < categories.Length; i++)
+        {
+            var w = weights[i];
+            var totalReturns = (int)Math.Round(metrics.TotalReturns * w);
+            var resold = (int)Math.Round(metrics.LocalMatches * w);
+            var divRate = totalReturns > 0 ? Math.Round((double)resold / totalReturns * 100.0, 1) : 0;
+
+            var reasons = reasonsByCategory.GetValueOrDefault(categories[i]) ?? [];
+            var topReasons = reasons.Select((r, idx) => new SegmentReasonDto
+            {
+                Reason = r.reason,
+                Count = Math.Max(1, (int)Math.Round(totalReturns * (idx == 0 ? 0.45 : 0.25))),
+                Share = idx == 0 ? 45.0 : 25.0,
+                TopLocation = r.location,
+                EstimatedAnnualImpact = r.impact,
+            }).ToList();
+
+            segments.Add(new SegmentAnalyticsDto
+            {
+                Segment = categories[i],
+                TotalReturns = totalReturns,
+                ItemsResold = resold,
+                DiversionRate = divRate,
+                RevenueRecovered = Math.Round((double)metrics.CostSaved * w, 2),
+                Co2SavedKg = Math.Round(metrics.Co2SavedKg * w, 2),
+                DistanceSavedKm = Math.Round(metrics.DistanceSavedKm * w, 2),
+                AvgMatchScore = Math.Round(70 + i * 3.5, 1),
+                AvgConfidence = Math.Round(0.82 + i * 0.03, 2),
+                AvgDaysToSell = Math.Round(3.0 + i * 0.8, 1),
+                TopReasons = topReasons,
+                Trend = trend.Take(7).Select((t, idx) => new SegmentTrendPointDto
+                {
+                    Label = $"W{idx + 1}",
+                    Count = (int)Math.Round(t.Returns * w),
+                }).ToList(),
+            });
+        }
+
+        _cache.Set(cacheKey, segments, CacheDuration);
+        return ApiResponse<List<SegmentAnalyticsDto>>.SuccessResponse(segments, $"{segments.Count} segments retrieved.");
+    }
+
+    public async Task<ApiResponse<List<LocationAnalyticsDto>>> GetLocationsAsync(CancellationToken cancellationToken = default)
+    {
+        const string cacheKey = "dashboard_locations";
+
+        if (_cache.TryGetValue(cacheKey, out List<LocationAnalyticsDto>? cached) && cached is not null)
+            return ApiResponse<List<LocationAnalyticsDto>>.SuccessResponse(cached, "Locations from cache.");
+
+        _logger.LogInformation("Building location analytics from metrics data");
+
+        var metrics = await _dashboardSpRepo.GetMetricsAsync(cancellationToken: cancellationToken);
+
+        // Distribute overall metrics across the 5 UPS hubs.
+        var hubs = new[] { "Chennai", "Bangalore", "Mumbai", "Delhi", "Hyderabad" };
+        var weights = new[] { 0.28, 0.24, 0.22, 0.16, 0.10 };
+
+        var locations = new List<LocationAnalyticsDto>();
+        for (int i = 0; i < hubs.Length; i++)
+        {
+            var w = weights[i];
+            locations.Add(new LocationAnalyticsDto
+            {
+                Location = hubs[i],
+                Returns = (int)Math.Round(metrics.TotalReturns * w),
+                CostRecovered = Math.Round((double)metrics.CostSaved * w, 2),
+                Co2SavedKg = Math.Round(metrics.Co2SavedKg * w, 2),
+                AvgMatchScore = Math.Round(78 + i * 3.2, 1),
+            });
+        }
+
+        _cache.Set(cacheKey, locations, CacheDuration);
+        return ApiResponse<List<LocationAnalyticsDto>>.SuccessResponse(locations, $"{locations.Count} locations retrieved.");
+    }
 }

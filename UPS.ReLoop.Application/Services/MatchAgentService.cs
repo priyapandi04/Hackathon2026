@@ -46,11 +46,29 @@ public class MatchAgentService : IMatchAgentService
 
         try
         {
-            // Step 1: Get inventory by product via SP
-            var inventoryItems = await _inventoryPoolSpRepo.GetByProductAsync(request.ProductId, request.Location, cancellationToken);
+            // Step 1: Get inventory by product via SP (non-fatal if SP missing)
+            IReadOnlyList<InventoryItemDto> inventoryItems;
+            try
+            {
+                inventoryItems = await _inventoryPoolSpRepo.GetByProductAsync(request.ProductId, request.Location, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "usp_GetInventoryByProduct unavailable — proceeding with empty inventory");
+                inventoryItems = Array.Empty<InventoryItemDto>();
+            }
 
-            // Step 2: Get demand history via SP
-            var demandItems = await _demandHistorySpRepo.GetAsync(request.ProductId, request.Location, cancellationToken);
+            // Step 2: Get demand history via SP (non-fatal if SP missing)
+            IReadOnlyList<DemandHistoryDto> demandItems;
+            try
+            {
+                demandItems = await _demandHistorySpRepo.GetAsync(request.ProductId, request.Location, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "usp_GetDemandHistory unavailable — proceeding with empty demand data");
+                demandItems = Array.Empty<DemandHistoryDto>();
+            }
 
             // Step 3: Calculate match score, distance saved, cost saved, CO2 saved
             var (matchScore, details) = CalculateMatchScore(request, inventoryItems, demandItems);
@@ -60,7 +78,7 @@ public class MatchAgentService : IMatchAgentService
             var costSaved = MatchCalculator.EstimateCostSaved(distanceSaved);
             var co2Saved = MatchCalculator.EstimateCo2Saved(distanceSaved);
 
-            // Generate AI explanation
+            // Generate AI explanation (non-fatal — fallback handled inside)
             var explanation = await GenerateExplanationAsync(request, matchScore, recommendation, details, cancellationToken);
 
             var response = new MatchAgentResponse
@@ -172,11 +190,17 @@ public class MatchAgentService : IMatchAgentService
         try
         {
             // Use the ReturnRequestId passed from the orchestrator (ReturnRequests.Id FK).
-            // Fall back to Guid.Empty only when called stand-alone (e.g. MatchAgentController).
-            var returnRequestId = request.ReturnRequestId ?? Guid.Empty;
+            // Skip persistence entirely when called stand-alone (e.g. MatchAgentController)
+            // because the SP's FK guard will reject a non-existent ReturnRequestId.
+            var returnRequestId = request.ReturnRequestId;
+            if (returnRequestId is null || returnRequestId == Guid.Empty)
+            {
+                _logger.LogInformation("Skipping SP save — no ReturnRequestId provided (standalone call)");
+                return;
+            }
 
             await _matchResultSpRepo.SaveAsync(new SaveMatchResultParams(
-                ReturnRequestId: returnRequestId,
+                ReturnRequestId: returnRequestId.Value,
                 ProductId: request.ProductId,
                 ProductName: request.ProductName,
                 Category: request.Category,
