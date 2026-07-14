@@ -43,8 +43,33 @@ public class DebugController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// One-click LLM connectivity check. Sends a tiny prompt to the configured AI
+    // Real neighbourhood sort-hubs per metro. A UPS ReLoop city hub fans out to
+    // several local sort centres; we pick one deterministically per return so a
+    // Chennai item lands in Porur/Velachery/etc. rather than a generic "Chennai Hub".
+    private static readonly Dictionary<string, string[]> SubHubs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Chennai"] = ["Porur", "Velachery", "Guindy", "Ambattur", "Tambaram", "Anna Nagar"],
+        ["Bangalore"] = ["Whitefield", "Koramangala", "Electronic City", "Hebbal", "Jayanagar", "Marathahalli"],
+        ["Bengaluru"] = ["Whitefield", "Koramangala", "Electronic City", "Hebbal", "Jayanagar", "Marathahalli"],
+        ["Mumbai"] = ["Andheri", "Bhiwandi", "Powai", "Vashi", "Thane", "Borivali"],
+        ["Delhi"] = ["Okhla", "Gurgaon", "Noida", "Dwarka", "Rohini", "Narela"],
+        ["Hyderabad"] = ["Gachibowli", "Uppal", "Kondapur", "Shamshabad", "Kukatpally"],
+        ["Pune"] = ["Hinjewadi", "Kharadi", "Wakad", "Chakan", "Hadapsar"],
+        ["Kolkata"] = ["Salt Lake", "Howrah", "Behala", "Dum Dum", "Rajarhat"],
+    };
+
+    private static readonly string[] DefaultSubHubs = ["Central", "North", "South", "East", "West"];
+
+    /// <summary>Deterministic local sort-hub for a city + return, e.g. "Porur".</summary>
+    private static string ResolveSubHub(string? location, Guid returnId)
+    {
+        var city = string.IsNullOrWhiteSpace(location) ? "Chennai" : location.Trim();
+        var pool = SubHubs.TryGetValue(city, out var hubs) ? hubs : DefaultSubHubs;
+        var idx = (int)((uint)returnId.GetHashCode() % (uint)pool.Length);
+        return pool[idx];
+    }
+
+
     /// provider (Azure OpenAI / GitHub Models / Ollama) and returns its reply, so
     /// you can confirm the AI agents' language model works before running the full flow.
     /// </summary>
@@ -321,6 +346,7 @@ public class DebugController : ControllerBase
                     m.ExplanationLength,
                     m.CreatedAt,
                     m.IsDeleted,
+                    SubHub = ResolveSubHub(m.Location, m.ReturnRequestId),
                     HoldingDay = clock.HoldingDay,
                     DaysRemaining = clock.DaysRemaining,
                     DiversionAction = diversion.Action,
