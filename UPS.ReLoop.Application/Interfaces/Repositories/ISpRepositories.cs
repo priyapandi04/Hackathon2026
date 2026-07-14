@@ -73,6 +73,16 @@ public interface IRootCauseSpRepository
 public interface IDashboardSpRepository
 {
     Task<DashboardMetricsDto> GetMetricsAsync(DateTime? fromDate = null, DateTime? toDate = null, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DashboardTrendPointDto>> GetTrendAsync(int days = 30, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AgentTelemetryDto>> GetAgentTelemetryAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Executes usp_GetBuyersByHub.
+/// </summary>
+public interface IBuyerSpRepository
+{
+    Task<IReadOnlyList<DTOs.Buyers.BuyerDto>> GetByHubAsync(string hub, CancellationToken cancellationToken = default);
 }
 
 // ========================

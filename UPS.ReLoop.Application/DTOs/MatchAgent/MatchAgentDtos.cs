@@ -6,7 +6,8 @@ public record MatchAgentRequest(
     string Category,
     string Location,
     string Condition,
-    decimal SalePrice = 0);
+    decimal SalePrice = 0,
+    Guid? ReturnRequestId = null);
 
 public class MatchAgentResponse
 {

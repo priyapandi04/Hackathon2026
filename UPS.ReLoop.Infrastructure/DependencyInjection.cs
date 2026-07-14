@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IMatchResultSpRepository, MatchResultSpRepository>();
         services.AddScoped<IRootCauseSpRepository, RootCauseSpRepository>();
         services.AddScoped<IDashboardSpRepository, DashboardSpRepository>();
+        services.AddScoped<IBuyerSpRepository, BuyerSpRepository>();
 
         services.Configure<AzureOpenAiSettings>(configuration.GetSection(AzureOpenAiSettings.SectionName));
         services.AddScoped<AzureOpenAiService>();

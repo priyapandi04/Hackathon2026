@@ -92,3 +92,31 @@ public record LocationAnalyticsDto
     public double Co2SavedKg { get; init; }
     public double AvgMatchScore { get; init; }
 }
+
+/// <summary>
+/// One data point in the daily savings/diversion trend line (30-day window).
+/// </summary>
+public record DashboardTrendPointDto
+{
+    public string Date { get; init; } = string.Empty;
+    public int Returns { get; init; }
+    public int LocalMatches { get; init; }
+    public double CostSaved { get; init; }
+    public double DistanceSavedKm { get; init; }
+    public double Co2SavedKg { get; init; }
+}
+
+/// <summary>
+/// Performance metrics for a single AI agent.
+/// Sourced from MatchAgentResults, AgentRecommendations (via SP) and
+/// AutoApprovalMetrics in-memory singleton (merged in service layer).
+/// </summary>
+public record AgentTelemetryDto
+{
+    public string AgentName { get; init; } = string.Empty;
+    public int TotalRuns { get; init; }
+    public int SuccessfulRuns { get; init; }
+    public double PrecisionRate { get; init; }
+    public double EscalationRate { get; init; }
+    public int AverageResponseTime { get; init; }
+}

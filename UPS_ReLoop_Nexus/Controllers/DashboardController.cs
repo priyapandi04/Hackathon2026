@@ -59,6 +59,21 @@ public class DashboardController : ControllerBase
     }
 
     /// <summary>
+    /// Returns a daily time-series of return and savings metrics (default 30 days).
+    /// </summary>
+    /// <param name="days">Number of days to look back (default 30).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    [HttpGet("trend")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<Application.DTOs.Dashboard.DashboardTrendPointDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTrend(
+        [FromQuery] int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _dashboardService.GetTrendAsync(days, cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>
     /// Per-location analytics for the executive charts — returns volume by region and
     /// INR value recovered by location (two distinct views), aggregated live.
     /// </summary>
@@ -68,6 +83,17 @@ public class DashboardController : ControllerBase
     public async Task<IActionResult> GetLocations(CancellationToken cancellationToken)
     {
         var result = await _dashboardService.GetLocationAnalyticsAsync(cancellationToken);
+        return StatusCode(result.StatusCode, result);
+    }
+
+    /// <summary>
+    /// Returns performance metrics for all AI agents.
+    /// </summary>
+    [HttpGet("agent-telemetry")]
+    [ProducesResponseType(typeof(Application.Common.ApiResponse<List<Application.DTOs.Dashboard.AgentTelemetryDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAgentTelemetry(CancellationToken cancellationToken)
+    {
+        var result = await _dashboardService.GetAgentTelemetryAsync(cancellationToken);
         return StatusCode(result.StatusCode, result);
     }
 }

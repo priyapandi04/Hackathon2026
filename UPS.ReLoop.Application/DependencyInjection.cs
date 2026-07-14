@@ -30,6 +30,7 @@ public static class DependencyInjection
         // pre-seeded with synthetic associate reviews so the accept-rate curve is live.
         services.AddSingleton(_ => FeedbackService.CreateSeededStore());
         services.AddScoped<IFeedbackService, FeedbackService>();
+        services.AddScoped<IBuyerService, BuyerService>();
 
         services.AddScoped<IReturnProcessingOrchestrator, ReturnProcessingOrchestrator>();
         return services;

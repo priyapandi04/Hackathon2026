@@ -12,4 +12,7 @@ public interface IDashboardService
 
     /// <summary>Per-location analytics (volume + INR recovered) for the executive charts.</summary>
     Task<ApiResponse<List<LocationAnalyticsDto>>> GetLocationAnalyticsAsync(CancellationToken cancellationToken = default);
+
+    Task<ApiResponse<List<DashboardTrendPointDto>>> GetTrendAsync(int days = 30, CancellationToken cancellationToken = default);
+    Task<ApiResponse<List<AgentTelemetryDto>>> GetAgentTelemetryAsync(CancellationToken cancellationToken = default);
 }

@@ -59,23 +59,23 @@ public class DashboardSpRepository : IDashboardSpRepository
 
             return new DashboardMetricsDto
             {
-                TotalReturns = metrics.TotalReturns,
-                EligibleReturns = metrics.EligibleReturns,
-                LocalMatches = metrics.LocalMatches,
-                DiversionRate = metrics.DiversionRate,
-                DistanceSavedKm = metrics.DistanceSavedKm,
-                CostSaved = (decimal)metrics.CostSaved,
-                Co2SavedKg = metrics.Co2SavedKg,
-                TotalValueRecovered = metrics.TotalValueRecovered,
-                ResaleMargin = metrics.ResaleMargin,
-                ResaleServiceFee = metrics.ResaleServiceFee,
-                Co2Value = metrics.Co2Value,
-                AiCost = metrics.AiCost,
+                TotalReturns = metrics.TotalReturns ?? 0,
+                EligibleReturns = metrics.EligibleReturns ?? 0,
+                LocalMatches = metrics.LocalMatches ?? 0,
+                DiversionRate = metrics.DiversionRate ?? 0,
+                DistanceSavedKm = metrics.DistanceSavedKm ?? 0,
+                CostSaved = (decimal)(metrics.CostSaved ?? 0),
+                Co2SavedKg = metrics.Co2SavedKg ?? 0,
+                TotalValueRecovered = metrics.TotalValueRecovered ?? 0,
+                ResaleMargin = metrics.ResaleMargin ?? 0,
+                ResaleServiceFee = metrics.ResaleServiceFee ?? 0,
+                Co2Value = metrics.Co2Value ?? 0,
+                AiCost = metrics.AiCost ?? 0,
                 RootCauseInsights = insights.Select(i => new RootCauseInsightDto
                 {
-                    Reason = i.Reason,
-                    Count = i.Count,
-                    Percentage = i.Percentage
+                    Reason = i.Reason ?? string.Empty,
+                    Count = i.Count ?? 0,
+                    Percentage = i.Percentage ?? 0
                 }).ToList()
             };
         }
@@ -88,24 +88,93 @@ public class DashboardSpRepository : IDashboardSpRepository
 
     private class DashboardMetricsSpResult
     {
-        public int TotalReturns { get; set; }
-        public int EligibleReturns { get; set; }
-        public int LocalMatches { get; set; }
-        public double DiversionRate { get; set; }
-        public double DistanceSavedKm { get; set; }
-        public double CostSaved { get; set; }
-        public double Co2SavedKg { get; set; }
-        public decimal TotalValueRecovered { get; set; }
-        public decimal ResaleMargin { get; set; }
-        public decimal ResaleServiceFee { get; set; }
-        public decimal Co2Value { get; set; }
-        public decimal AiCost { get; set; }
+        public int? TotalReturns { get; set; }
+        public int? EligibleReturns { get; set; }
+        public int? LocalMatches { get; set; }
+        public double? DiversionRate { get; set; }
+        public double? DistanceSavedKm { get; set; }
+        public double? CostSaved { get; set; }
+        public double? Co2SavedKg { get; set; }
+        public decimal? TotalValueRecovered { get; set; }
+        public decimal? ResaleMargin { get; set; }
+        public decimal? ResaleServiceFee { get; set; }
+        public decimal? Co2Value { get; set; }
+        public decimal? AiCost { get; set; }
     }
 
     private class RootCauseInsightSpResult
     {
-        public string Reason { get; set; } = string.Empty;
-        public int Count { get; set; }
-        public double Percentage { get; set; }
+        public string? Reason { get; set; }
+        public int? Count { get; set; }
+        public double? Percentage { get; set; }
+    }
+
+    // ---- Trend ----
+
+    public async Task<IReadOnlyList<DashboardTrendPointDto>> GetTrendAsync(int days = 30, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Executing usp_GetDashboardTrend Days: {Days}", days);
+
+        var parameters = new[]
+        {
+            new SqlParameter("@Days", SqlDbType.Int) { Value = days }
+        };
+
+        var results = await _context.Database
+            .SqlQueryRaw<TrendSpResult>(
+                "EXEC [dbo].[usp_GetDashboardTrend] @Days",
+                parameters)
+            .ToListAsync(cancellationToken);
+
+        return results.Select(r => new DashboardTrendPointDto
+        {
+            Date = r.Date.ToString("yyyy-MM-dd"),
+            Returns = r.Returns,
+            LocalMatches = r.LocalMatches,
+            CostSaved = r.CostSaved,
+            DistanceSavedKm = r.DistanceSavedKm,
+            Co2SavedKg = r.Co2SavedKg,
+        }).ToList().AsReadOnly();
+    }
+
+    private class TrendSpResult
+    {
+        public DateTime Date { get; set; }
+        public int Returns { get; set; }
+        public int LocalMatches { get; set; }
+        public double CostSaved { get; set; }
+        public double DistanceSavedKm { get; set; }
+        public double Co2SavedKg { get; set; }
+    }
+
+    // ---- Agent Telemetry ----
+
+    public async Task<IReadOnlyList<AgentTelemetryDto>> GetAgentTelemetryAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Executing usp_GetAgentTelemetry");
+
+        var results = await _context.Database
+            .SqlQueryRaw<AgentTelemetrySpResult>("EXEC [dbo].[usp_GetAgentTelemetry]")
+            .ToListAsync(cancellationToken);
+
+        return results.Select(r => new AgentTelemetryDto
+        {
+            AgentName = r.AgentName,
+            TotalRuns = r.TotalRuns,
+            SuccessfulRuns = r.SuccessfulRuns,
+            PrecisionRate = r.PrecisionRate,
+            EscalationRate = r.EscalationRate,
+            AverageResponseTime = r.AverageResponseTime,
+        }).ToList().AsReadOnly();
+    }
+
+    private class AgentTelemetrySpResult
+    {
+        public string AgentName { get; set; } = string.Empty;
+        public int TotalRuns { get; set; }
+        public int SuccessfulRuns { get; set; }
+        public double PrecisionRate { get; set; }
+        public double EscalationRate { get; set; }
+        public int AverageResponseTime { get; set; }
     }
 }
