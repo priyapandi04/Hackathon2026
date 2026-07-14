@@ -36,6 +36,26 @@ What it did **not** yet do — and what the UPS brief and the judges' scorecard 
 
 ---
 
+## 2a. Session update (2026-07-14) — risk-weighted dynamic pricing
+
+Enhancement #2 (`DiversionAgentService`) originally marked items down on the **calendar alone**
+(a fixed per-day discount ladder). It now computes a **risk-weighted markdown** from three
+independent signals plus category economics — still fully deterministic/auditable (never the LLM):
+
+- `discount% = categoryCeiling × clearanceRisk × valueGuard`
+  - **clearanceRisk** = `0.45·timePressure + 0.35·demandRisk + 0.20·conditionRisk` (0 = safe, 1 = high dead-stock risk)
+  - **categoryCeiling** (elasticity): Books 20 · Home 26 · Sports 34 · Electronics 35 · Accessories 38 · Footwear 40 · Apparel 42 · Beauty 45
+  - **valueGuard**: premium items (> ₹5,000) discounted more gently (×0.8) — recover via reach, not margin
+- **search radius** = `10 km × (1 + 1.5·clearanceRisk)` → widens up to 25 km as risk rises
+- **sellProbability** = `0.60·match + 0.40·condition`, surfaced on the decision + UI
+- `Decide(...)` gained optional `condition` + `category` params; `DiversionDecision` gained
+  `SellProbability` + `ClearanceRisk`. All 50 unit tests still pass.
+
+_Where:_ `DiversionAgentService.cs`, `IDiversionAgentService.cs`, `DecisionDtos.cs`,
+`ReturnProcessingOrchestrator.cs` (Step 4a passes condition + category).
+
+---
+
 ## 3. New decision object
 
 Every processed return now returns a richer, auditable decision. New fields on the integration response:
