@@ -5,7 +5,8 @@ public record MatchAgentRequest(
     string ProductName,
     string Category,
     string Location,
-    string Condition);
+    string Condition,
+    Guid? ReturnRequestId = null);
 
 public class MatchAgentResponse
 {

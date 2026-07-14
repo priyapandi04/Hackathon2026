@@ -150,17 +150,21 @@ public class DashboardSpRepository : IDashboardSpRepository
         return results.Select(r => new AgentTelemetryDto
         {
             AgentName = r.AgentName,
-            DecisionsMade = r.DecisionsMade,
-            Precision = r.Precision,
+            TotalRuns = r.TotalRuns,
+            SuccessfulRuns = r.SuccessfulRuns,
+            PrecisionRate = r.PrecisionRate,
             EscalationRate = r.EscalationRate,
+            AverageResponseTime = r.AverageResponseTime,
         }).ToList().AsReadOnly();
     }
 
     private class AgentTelemetrySpResult
     {
         public string AgentName { get; set; } = string.Empty;
-        public int DecisionsMade { get; set; }
-        public double Precision { get; set; }
+        public int TotalRuns { get; set; }
+        public int SuccessfulRuns { get; set; }
+        public double PrecisionRate { get; set; }
         public double EscalationRate { get; set; }
+        public int AverageResponseTime { get; set; }
     }
 }

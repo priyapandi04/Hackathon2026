@@ -49,11 +49,15 @@ public record DashboardTrendPointDto
 
 /// <summary>
 /// Performance metrics for a single AI agent.
+/// Sourced from MatchAgentResults, AgentRecommendations (via SP) and
+/// AutoApprovalMetrics in-memory singleton (merged in service layer).
 /// </summary>
 public record AgentTelemetryDto
 {
     public string AgentName { get; init; } = string.Empty;
-    public int DecisionsMade { get; init; }
-    public double Precision { get; init; }
+    public int TotalRuns { get; init; }
+    public int SuccessfulRuns { get; init; }
+    public double PrecisionRate { get; init; }
     public double EscalationRate { get; init; }
+    public int AverageResponseTime { get; init; }
 }

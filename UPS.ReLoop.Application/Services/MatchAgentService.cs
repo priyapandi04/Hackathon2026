@@ -171,7 +171,9 @@ public class MatchAgentService : IMatchAgentService
     {
         try
         {
-            var returnRequestId = Guid.TryParse(request.ProductId, out var parsed) ? parsed : Guid.Empty;
+            // Use the ReturnRequestId passed from the orchestrator (ReturnRequests.Id FK).
+            // Fall back to Guid.Empty only when called stand-alone (e.g. MatchAgentController).
+            var returnRequestId = request.ReturnRequestId ?? Guid.Empty;
 
             await _matchResultSpRepo.SaveAsync(new SaveMatchResultParams(
                 ReturnRequestId: returnRequestId,

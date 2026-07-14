@@ -35,6 +35,21 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Buyers' AND COLUMN_NAME = 'BuyerId')
         ALTER TABLE [dbo].[Buyers] ADD [BuyerId] NVARCHAR(20) NOT NULL DEFAULT 'B000';
 
+    -- Rename legacy 'Distance' column to 'DistanceKm' if it still has the old name.
+    -- sp_rename is used instead of DROP + ADD to preserve existing data.
+    IF EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'Buyers' AND COLUMN_NAME = 'Distance'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'Buyers' AND COLUMN_NAME = 'DistanceKm'
+    )
+    BEGIN
+        EXEC sp_rename 'dbo.Buyers.Distance', 'DistanceKm', 'COLUMN';
+        PRINT '  Renamed column [Distance] -> [DistanceKm]';
+    END
+
     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Buyers' AND COLUMN_NAME = 'DistanceKm')
         ALTER TABLE [dbo].[Buyers] ADD [DistanceKm] FLOAT NOT NULL DEFAULT 0;
 
@@ -49,6 +64,15 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Buyers' AND COLUMN_NAME = 'Recommendation')
         ALTER TABLE [dbo].[Buyers] ADD [Recommendation] NVARCHAR(200) NOT NULL DEFAULT 'Moderate Demand';
+
+    -- Drop the legacy index that referenced 'Distance' so it is rebuilt with 'DistanceKm'.
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Buyers_Hub' AND object_id = OBJECT_ID('dbo.Buyers'))
+        DROP INDEX [IX_Buyers_Hub] ON [dbo].[Buyers];
+
+    -- Recreate the covering index with the corrected column name.
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Buyers_Hub' AND object_id = OBJECT_ID('dbo.Buyers'))
+        CREATE NONCLUSTERED INDEX [IX_Buyers_Hub] ON [dbo].[Buyers] ([Hub])
+            INCLUDE ([BuyerId],[Name],[Zone],[DistanceKm],[EstimatedDeliveryHours],[DemandScore],[PreferredCategory],[Recommendation]);
 
     PRINT 'Migrated existing [Buyers] table with new columns.';
 END

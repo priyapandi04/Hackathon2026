@@ -23,6 +23,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
 
     private readonly IReturnRequestSpRepository _returnRequestSpRepo;
     private readonly IImageValidationService _imageValidationService;
+    private readonly IImageValidationSpRepository _imageValidationSpRepo;
     private readonly IInventoryPoolSpRepository _inventoryPoolSpRepo;
     private readonly IMatchAgentService _matchAgentService;
     private readonly IRootCauseAgentService _rootCauseAgentService;
@@ -35,6 +36,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
     public ReturnProcessingOrchestrator(
         IReturnRequestSpRepository returnRequestSpRepo,
         IImageValidationService imageValidationService,
+        IImageValidationSpRepository imageValidationSpRepo,
         IInventoryPoolSpRepository inventoryPoolSpRepo,
         IMatchAgentService matchAgentService,
         IRootCauseAgentService rootCauseAgentService,
@@ -46,6 +48,7 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
     {
         _returnRequestSpRepo = returnRequestSpRepo;
         _imageValidationService = imageValidationService;
+        _imageValidationSpRepo = imageValidationSpRepo;
         _inventoryPoolSpRepo = inventoryPoolSpRepo;
         _matchAgentService = matchAgentService;
         _rootCauseAgentService = rootCauseAgentService;
@@ -203,23 +206,41 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         {
             try
             {
-                await _inventoryPoolSpRepo.AddToPoolAsync(
-                    response.ReturnRequestId,
-                    request.PackageId.ToString(),
-                    request.Location,
-                    50.0,
+                // Must create a Returns record first so the FK
+                // InventoryPool.ReturnId -> Returns.Id is satisfied.
+                var returnId = await _imageValidationSpRepo.SaveResultAsync(new ImageValidationResultParams(
+                    ProductId: request.PackageId.ToString(),
+                    ProductName: request.ProductName,
+                    Category: request.Category,
+                    ReturnReason: request.ReturnReason,
+                    Condition: "Unknown",
+                    Eligibility: "Assumed Eligible",
+                    Confidence: 0.5,
+                    Location: request.Location),
                     cancellationToken);
 
-                _logger.LogInformation("Step 3 complete � Added to inventory pool (no image flow) for ReturnRequestId: {Id}", response.ReturnRequestId);
+                if (returnId != Guid.Empty)
+                {
+                    await _inventoryPoolSpRepo.AddToPoolAsync(
+                        returnId,                          // Returns.Id  ← correct FK parent
+                        request.PackageId.ToString(),
+                        request.Location,
+                        50.0,
+                        cancellationToken);
+
+                    _logger.LogInformation(
+                        "Step 3 complete — Created Returns record {ReturnId} and added to InventoryPool (no-image flow)",
+                        returnId);
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Step 3 � Failed to add to inventory pool for PackageId: {PackageId}", request.PackageId);
+                _logger.LogWarning(ex, "Step 3 — Failed to add to inventory pool for PackageId: {PackageId}", request.PackageId);
             }
         }
         else
         {
-            _logger.LogInformation("Step 3 � Inventory pool handled by ImageValidationService");
+            _logger.LogInformation("Step 3 — Inventory pool handled by ImageValidationService");
         }
 
         // ???????????????????????????????????????????????????
@@ -235,7 +256,8 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
                     request.ProductName,
                     request.Category,
                     request.Location,
-                    condition),
+                    condition,
+                    ReturnRequestId: response.ReturnRequestId),
                 cancellationToken);
 
             if (matchResult.Success && matchResult.Data is not null)

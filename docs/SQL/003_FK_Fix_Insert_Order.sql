@@ -1,8 +1,9 @@
 -- ============================================================
--- 003_FK_Fix_Insert_Order.sql
--- Fixes FK constraint issues:
---   FK_InventoryPool_ImageValidationResults
---   FK_MatchAgentResults_ReturnRequests
+-- 003_FK_Fix_Insert_Order.sql  [SUPERSEDED]
+-- This script has been superseded by 005_FK_Remediation_Full.sql
+-- which provides complete root-cause analysis, correct FK targets,
+-- transaction handling, rollback strategy, SP updates and seed fixes.
+-- DO NOT RE-RUN this file independently.
 -- ============================================================
 
 -- Option A: Drop the problematic FK on InventoryPool if ReturnId
