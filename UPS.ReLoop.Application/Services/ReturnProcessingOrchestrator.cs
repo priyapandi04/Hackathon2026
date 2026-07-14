@@ -281,7 +281,9 @@ public class ReturnProcessingOrchestrator : IReturnProcessingOrchestrator
         // ???????????????????????????????????????????????????
         var matchScore = response.HyperlocalMatch?.MatchScore ?? 0;
         response.Diversion = _diversionAgentService.Decide(
-            matchScore, response.HoldingClock!, ResolveBasePrice(request), resaleAllowed: true);
+            matchScore, response.HoldingClock!, ResolveBasePrice(request), resaleAllowed: true,
+            condition: response.ImageValidation?.Condition ?? request.Condition,
+            category: request.Category);
 
         response.Status = response.Diversion.Action switch
         {

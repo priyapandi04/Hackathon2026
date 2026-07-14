@@ -56,6 +56,12 @@ public class DiversionDecision
     public double SearchRadiusKm { get; set; }
     public bool Escalated { get; set; }
     public string Reasoning { get; set; } = string.Empty;
+
+    /// <summary>Probability (0-1) the item clears locally, blended from demand strength and condition.</summary>
+    public double SellProbability { get; set; }
+
+    /// <summary>Blended dead-stock risk (0-1) from time pressure, weak demand and low condition — drives the markdown depth.</summary>
+    public double ClearanceRisk { get; set; }
 }
 
 /// <summary>

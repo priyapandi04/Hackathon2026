@@ -10,5 +10,5 @@ using UPS.ReLoop.Application.DTOs.Decision;
 /// </summary>
 public interface IDiversionAgentService
 {
-    DiversionDecision Decide(int matchScore, HoldingClockResult clock, decimal basePrice, bool resaleAllowed);
+    DiversionDecision Decide(int matchScore, HoldingClockResult clock, decimal basePrice, bool resaleAllowed, string? condition = null, string? category = null);
 }
