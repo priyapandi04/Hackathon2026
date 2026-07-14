@@ -54,6 +54,10 @@ independent signals plus category economics — still fully deterministic/audita
 _Where:_ `DiversionAgentService.cs`, `IDiversionAgentService.cs`, `DecisionDtos.cs`,
 `ReturnProcessingOrchestrator.cs` (Step 4a passes condition + category).
 
+The diagnostics endpoint `GET /api/debug/matches` now also runs this agent **per row** (joining the
+holding clock + sale price) so the Returns Inventory grid shows the real markdown, clearance risk,
+radius and sell-through — not a frontend heuristic. _Where:_ `DebugController.cs`.
+
 ---
 
 ## 3. New decision object
