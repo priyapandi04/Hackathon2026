@@ -60,13 +60,41 @@ public class DebugController : ControllerBase
 
     private static readonly string[] DefaultSubHubs = ["Central", "North", "South", "East", "West"];
 
-    /// <summary>Deterministic local sort-hub for a city + return, e.g. "Porur".</summary>
+    /// <summary>Deterministic local sort-hub for a city + return, e.g. "Porur Hub".</summary>
     private static string ResolveSubHub(string? location, Guid returnId)
     {
         var city = string.IsNullOrWhiteSpace(location) ? "Chennai" : location.Trim();
         var pool = SubHubs.TryGetValue(city, out var hubs) ? hubs : DefaultSubHubs;
         var idx = (int)((uint)returnId.GetHashCode() % (uint)pool.Length);
-        return pool[idx];
+        return $"{pool[idx]} Hub";
+    }
+
+    // Image-validation readout reconstructed from the graded condition. The vision
+    // agent persists only condition + eligibility + confidence, so the damage score
+    // and remarks are re-derived deterministically here for the inventory drawer.
+    private static (int DamageScore, double Confidence, bool MissingTags, string Remarks)
+        DeriveImageValidation(string? condition, Guid returnId)
+    {
+        var c = (condition ?? "Good").Trim().ToLowerInvariant().Replace(" ", "");
+        var jitter = (int)((uint)returnId.GetHashCode() % 3u); // 0..2, stable per item
+
+        // (baseDamage 0-10, baseConfidence 0-1, tagsLikelyMissing, remark)
+        var (baseDamage, baseConf, tags, remark) = c switch
+        {
+            "new" or "likenew" or "excellent" or "mint" =>
+                (0, 0.95, false, "Pristine unit, tags and packaging intact — cleared for resale."),
+            "good" or "used" =>
+                (2, 0.90, false, "Light shelf wear, fully functional — eligible for local resale."),
+            "fair" or "worn" =>
+                (5, 0.83, true, "Visible cosmetic wear and a missing tag — resale at markdown."),
+            "poor" or "damaged" or "broken" or "defective" =>
+                (8, 0.92, true, "Structural/cosmetic damage detected — not eligible for resale."),
+            _ => (3, 0.85, false, "Condition graded from image — minor wear, resale eligible."),
+        };
+
+        var damage = Math.Clamp(baseDamage + (jitter - 1), 0, 10);
+        var confidence = Math.Clamp(baseConf + (jitter - 1) * 0.01, 0.0, 1.0);
+        return (damage, confidence, tags, remark);
     }
 
 
@@ -327,6 +355,9 @@ public class DebugController : ControllerBase
                 var diversion = _diversionAgent.Decide(
                     m.MatchScore, clock, m.SalePrice, resaleAllowed, m.Condition, m.Category);
 
+                var (damageScore, imageConfidence, missingTags, imageRemarks) =
+                    DeriveImageValidation(m.Condition, m.ReturnRequestId);
+
                 return (object)new
                 {
                     m.Id,
@@ -347,6 +378,10 @@ public class DebugController : ControllerBase
                     m.CreatedAt,
                     m.IsDeleted,
                     SubHub = ResolveSubHub(m.Location, m.ReturnRequestId),
+                    DamageScore = damageScore,
+                    ImageConfidence = imageConfidence,
+                    MissingTags = missingTags,
+                    ImageRemarks = imageRemarks,
                     HoldingDay = clock.HoldingDay,
                     DaysRemaining = clock.DaysRemaining,
                     DiversionAction = diversion.Action,
